@@ -16,6 +16,8 @@ set(source_files
 
     model/atp-bulk-send-application.cc
     helper/atp-bulk-send-helper.cc
+
+    model/atp-header.cc
 )
 
 set(header_files
@@ -24,6 +26,8 @@ set(header_files
 
     model/atp-bulk-send-application.h
     helper/atp-bulk-send-helper.h
+
+    model/atp-header.h
 )
 
 build_lib(
@@ -32,6 +36,8 @@ build_lib(
     HEADER_FILES ${header_files}
     LIBRARIES_TO_LINK ${libinternet}
                       ${libapplications}
+                      ${libcsma}
+                      ${libbridge}
     TEST_SOURCES test/atp-test-suite.cc
                  ${examples_as_tests_sources}
 )

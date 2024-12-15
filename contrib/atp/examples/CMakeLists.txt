@@ -12,3 +12,13 @@ build_lib_example(
                       ${libapplications}
                       ${libpoint-to-point}                      
 )
+
+build_lib_example(
+    NAME atp-bulk-header
+    SOURCE_FILES atp-bulk-header.cc
+    LIBRARIES_TO_LINK ${libatp}
+                      ${libinternet}
+                      ${libapplications}
+                      ${libcsma}
+                      ${libbridge}
+)

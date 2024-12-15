@@ -9,7 +9,7 @@
 #ifndef ATP_BULK_SEND_APPLICATION_H
 #define ATP_BULK_SEND_APPLICATION_H
 
-#include "ns3/seq-ts-size-header.h"
+#include "atp-header.h"
 
 #include "ns3/address.h"
 #include "ns3/application.h"
@@ -112,6 +112,9 @@ class ATPBulkSendApplication : public Application
      */
     void SendData(const Address& from, const Address& to);
 
+    void SetJobId(uint32_t jobId);
+    uint32_t GetJobId() const;
+
     Ptr<Socket> m_socket;                //!< Associated socket
     Address m_peer;                      //!< Peer address
     Address m_local;                     //!< Local address to bind to
@@ -123,7 +126,8 @@ class ATPBulkSendApplication : public Application
     TypeId m_tid;                        //!< The type of protocol to use.
     uint32_t m_seq{0};                   //!< Sequence
     Ptr<Packet> m_unsentPacket;          //!< Variable to cache unsent packet
-    bool m_enableSeqTsSizeHeader{false}; //!< Enable or disable the SeqTsSizeHeader
+    bool m_enableATPHeader{false};       //!< Enable or disable the ATPHeader
+    uint32_t m_jobId{0};                 //!< Job ID
 
     /// Traced Callback: sent packets
     TracedCallback<Ptr<const Packet>> m_txTrace;
@@ -138,8 +142,8 @@ class ATPBulkSendApplication : public Application
 
     /// Callback for tracing the packet Tx events, includes source, destination,  the packet sent,
     /// and header
-    TracedCallback<Ptr<const Packet>, const Address&, const Address&, const SeqTsSizeHeader&>
-        m_txTraceWithSeqTsSize;
+    TracedCallback<Ptr<const Packet>, const Address&, const Address&, const ATPHeader&>
+        m_txTraceWithATPHeader;
 
   private:
     /**

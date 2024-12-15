@@ -72,19 +72,24 @@ ATPBulkSendApplication::GetTypeId()
                           TypeIdValue(TcpSocketFactory::GetTypeId()),
                           MakeTypeIdAccessor(&ATPBulkSendApplication::m_tid),
                           MakeTypeIdChecker())
-            .AddAttribute("EnableSeqTsSizeHeader",
-                          "Add SeqTsSizeHeader to each packet",
+            .AddAttribute("EnableATPHeader",
+                          "Add ATPHeader to each packet",
                           BooleanValue(false),
-                          MakeBooleanAccessor(&ATPBulkSendApplication::m_enableSeqTsSizeHeader),
+                          MakeBooleanAccessor(&ATPBulkSendApplication::m_enableATPHeader),
                           MakeBooleanChecker())
+            .AddAttribute("JobId",
+                          "The job ID",
+                          UintegerValue(0),
+                          MakeUintegerAccessor(&ATPBulkSendApplication::m_jobId),
+                          MakeUintegerChecker<uint32_t>())
             .AddTraceSource("Tx",
                             "A new packet is sent",
                             MakeTraceSourceAccessor(&ATPBulkSendApplication::m_txTrace),
                             "ns3::Packet::TracedCallback")
-            .AddTraceSource("TxWithSeqTsSize",
-                            "A new packet is created with SeqTsSizeHeader",
-                            MakeTraceSourceAccessor(&ATPBulkSendApplication::m_txTraceWithSeqTsSize),
-                            "ns3::PacketSink::SeqTsSizeCallback")
+            .AddTraceSource("TxWithATPHeader",
+                            "A new packet is created with ATPHeader",
+                            MakeTraceSourceAccessor(&ATPBulkSendApplication::m_txTraceWithATPHeader),
+                            "ns3::PacketSink::ATPHeaderCallback")
             .AddTraceSource("TcpRetransmission",
                             "The TCP socket retransmitted a packet",
                             MakeTraceSourceAccessor(&ATPBulkSendApplication::m_retransmissionTrace),
@@ -250,15 +255,16 @@ ATPBulkSendApplication::SendData(const Address& from, const Address& to)
             packet = m_unsentPacket;
             toSend = packet->GetSize();
         }
-        else if (m_enableSeqTsSizeHeader)
+        else if (m_enableATPHeader)
         {
-            SeqTsSizeHeader header;
+            ATPHeader header;
+            header.SetJobId(m_jobId);
             header.SetSeq(m_seq++);
             header.SetSize(toSend);
             NS_ABORT_IF(toSend < header.GetSerializedSize());
             packet = Create<Packet>(toSend - header.GetSerializedSize());
             // Trace before adding header, for consistency with PacketSink
-            m_txTraceWithSeqTsSize(packet, from, to, header);
+            m_txTraceWithATPHeader(packet, from, to, header);
             packet->AddHeader(header);
         }
         else
@@ -353,6 +359,19 @@ ATPBulkSendApplication::PacketRetransmitted(Ptr<const Packet> p,
 {
     NS_LOG_FUNCTION(this << p << header << localAddr << peerAddr << socket);
     m_retransmissionTrace(p, header, localAddr, peerAddr, socket);
+}
+
+
+void
+ATPBulkSendApplication::SetJobId(uint32_t jobId)
+{
+    m_jobId = jobId;
+}
+
+uint32_t
+ATPBulkSendApplication::GetJobId() const
+{
+    return m_jobId;
 }
 
 } // Namespace ns3
