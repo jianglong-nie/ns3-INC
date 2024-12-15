@@ -13,18 +13,25 @@ endif()
 set(source_files
     model/atp.cc
     helper/atp-helper.cc
+
+    model/atp-bulk-send-application.cc
+    helper/atp-bulk-send-helper.cc
 )
 
 set(header_files
     model/atp.h
-    helper/atp-helper.h 
+    helper/atp-helper.h
+
+    model/atp-bulk-send-application.h
+    helper/atp-bulk-send-helper.h
 )
 
 build_lib(
     LIBNAME atp
     SOURCE_FILES ${source_files}
     HEADER_FILES ${header_files}
-    LIBRARIES_TO_LINK ${libcore}
+    LIBRARIES_TO_LINK ${libinternet}
+                      ${libapplications}
     TEST_SOURCES test/atp-test-suite.cc
                  ${examples_as_tests_sources}
 )
