@@ -40,7 +40,6 @@ main(int argc, char* argv[])
     //LogComponentEnable("ATPBulkSendApplication", LOG_LEVEL_ALL);
     //LogComponentEnable("PacketSink", LOG_LEVEL_ALL);
     //LogComponentEnable("TcpSocketBase", LOG_LEVEL_ALL);
-    //LogComponentEnable("AtpCC", LOG_LEVEL_ALL);
     LogComponentEnable("ATPTag", LOG_LEVEL_ALL);
     bool tracing = false;
     uint32_t maxBytes = 100;
@@ -53,8 +52,6 @@ main(int argc, char* argv[])
     cmd.AddValue("tracing", "Flag to enable/disable tracing", tracing);
     cmd.AddValue("maxBytes", "Total number of bytes for application to send", maxBytes);
     cmd.Parse(argc, argv);
-
-    //Config::SetDefault("ns3::TcpL4Protocol::SocketType", TypeIdValue(AtpCC::GetTypeId()));
 
     //
     // Explicitly create the nodes required by the topology (shown above).
