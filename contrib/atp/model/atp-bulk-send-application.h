@@ -10,6 +10,7 @@
 #define ATP_BULK_SEND_APPLICATION_H
 
 #include "atp-header.h"
+#include "atp-tag.h"
 
 #include "ns3/address.h"
 #include "ns3/application.h"
@@ -127,6 +128,7 @@ class ATPBulkSendApplication : public Application
     uint32_t m_seq{0};                   //!< Sequence
     Ptr<Packet> m_unsentPacket;          //!< Variable to cache unsent packet
     bool m_enableATPHeader{false};       //!< Enable or disable the ATPHeader
+    bool m_enableATPTag{false};          //!< Enable or disable the ATPTag
     uint32_t m_jobId{0};                 //!< Job ID
 
     /// Traced Callback: sent packets

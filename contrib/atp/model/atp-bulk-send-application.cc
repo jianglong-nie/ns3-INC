@@ -77,6 +77,11 @@ ATPBulkSendApplication::GetTypeId()
                           BooleanValue(false),
                           MakeBooleanAccessor(&ATPBulkSendApplication::m_enableATPHeader),
                           MakeBooleanChecker())
+            .AddAttribute("EnableATPTag",
+                          "Add ATPTag to each packet",
+                          BooleanValue(false),
+                          MakeBooleanAccessor(&ATPBulkSendApplication::m_enableATPTag),
+                          MakeBooleanChecker())
             .AddAttribute("JobId",
                           "The job ID",
                           UintegerValue(0),
@@ -254,6 +259,17 @@ ATPBulkSendApplication::SendData(const Address& from, const Address& to)
         {
             packet = m_unsentPacket;
             toSend = packet->GetSize();
+        }
+        else if (m_enableATPTag)
+        {
+            ATPTag tag;
+            tag.SetJobId(m_jobId);
+            tag.SetSeq(m_seq++);
+            tag.SetSize(toSend);
+            packet = Create<Packet>(toSend);
+            packet->AddPacketTag(tag);
+             // Trace before adding header, for consistency with PacketSink
+            m_txTrace(packet);
         }
         else if (m_enableATPHeader)
         {

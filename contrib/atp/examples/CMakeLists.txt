@@ -22,3 +22,14 @@ build_lib_example(
                       ${libcsma}
                       ${libbridge}
 )
+
+
+build_lib_example(
+    NAME atp-bulk-tag
+    SOURCE_FILES atp-bulk-tag.cc
+    LIBRARIES_TO_LINK ${libatp}
+                      ${libinternet}
+                      ${libapplications}
+                      ${libcsma}
+                      ${libbridge}
+)

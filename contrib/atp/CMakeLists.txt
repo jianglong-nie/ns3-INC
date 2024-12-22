@@ -18,6 +18,7 @@ set(source_files
     helper/atp-bulk-send-helper.cc
 
     model/atp-header.cc
+    model/atp-tag.cc
 )
 
 set(header_files
@@ -28,6 +29,7 @@ set(header_files
     helper/atp-bulk-send-helper.h
 
     model/atp-header.h
+    model/atp-tag.h
 )
 
 build_lib(
