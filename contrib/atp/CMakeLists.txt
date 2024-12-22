@@ -19,6 +19,10 @@ set(source_files
 
     model/atp-header.cc
     model/atp-tag.cc
+
+    model/atp-bridge-channel.cc
+    model/atp-bridge-net-device.cc
+    helper/atp-bridge-helper.cc
 )
 
 set(header_files
@@ -30,6 +34,10 @@ set(header_files
 
     model/atp-header.h
     model/atp-tag.h
+
+    model/atp-bridge-channel.h
+    model/atp-bridge-net-device.h
+    helper/atp-bridge-helper.h
 )
 
 build_lib(
