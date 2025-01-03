@@ -76,3 +76,14 @@ build_example(
     ${libinternet}
     ${libapplications}
 )
+
+build_example(
+  NAME my-fifth
+  SOURCE_FILES my-fifth.cc
+               tutorial-app.cc
+  LIBRARIES_TO_LINK
+    ${libcore}
+    ${libpoint-to-point}
+    ${libinternet}
+    ${libapplications}
+)
