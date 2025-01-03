@@ -153,62 +153,63 @@ ATPBulkSendApplication::StartApplication() // Called at time specified by Start
     if (!m_socket)
     {
         m_socket = Socket::CreateSocket(GetNode(), m_tid);
-        int ret = -1;
+    }
+    int ret = -1;
 
-        // Fatal error if socket type is not NS3_SOCK_STREAM or NS3_SOCK_SEQPACKET
-        if (m_socket->GetSocketType() != Socket::NS3_SOCK_STREAM &&
-            m_socket->GetSocketType() != Socket::NS3_SOCK_SEQPACKET)
-        {
-            NS_FATAL_ERROR("Using BulkSend with an incompatible socket type. "
-                           "BulkSend requires SOCK_STREAM or SOCK_SEQPACKET. "
-                           "In other words, use TCP instead of UDP.");
-        }
+    // Fatal error if socket type is not NS3_SOCK_STREAM or NS3_SOCK_SEQPACKET
+    if (m_socket->GetSocketType() != Socket::NS3_SOCK_STREAM &&
+        m_socket->GetSocketType() != Socket::NS3_SOCK_SEQPACKET)
+    {
+        NS_FATAL_ERROR("Using BulkSend with an incompatible socket type. "
+                        "BulkSend requires SOCK_STREAM or SOCK_SEQPACKET. "
+                        "In other words, use TCP instead of UDP.");
+    }
 
-        NS_ABORT_MSG_IF(m_peer.IsInvalid(), "'Remote' attribute not properly set");
+    NS_ABORT_MSG_IF(m_peer.IsInvalid(), "'Remote' attribute not properly set");
 
-        if (!m_local.IsInvalid())
+    if (!m_local.IsInvalid())
+    {
+        NS_ABORT_MSG_IF((Inet6SocketAddress::IsMatchingType(m_peer) &&
+                            InetSocketAddress::IsMatchingType(m_local)) ||
+                            (InetSocketAddress::IsMatchingType(m_peer) &&
+                                Inet6SocketAddress::IsMatchingType(m_local)),
+                        "Incompatible peer and local address IP version");
+        ret = m_socket->Bind(m_local);
+    }
+    else
+    {
+        if (Inet6SocketAddress::IsMatchingType(m_peer))
         {
-            NS_ABORT_MSG_IF((Inet6SocketAddress::IsMatchingType(m_peer) &&
-                             InetSocketAddress::IsMatchingType(m_local)) ||
-                                (InetSocketAddress::IsMatchingType(m_peer) &&
-                                 Inet6SocketAddress::IsMatchingType(m_local)),
-                            "Incompatible peer and local address IP version");
-            ret = m_socket->Bind(m_local);
+            ret = m_socket->Bind6();
         }
-        else
+        else if (InetSocketAddress::IsMatchingType(m_peer))
         {
-            if (Inet6SocketAddress::IsMatchingType(m_peer))
-            {
-                ret = m_socket->Bind6();
-            }
-            else if (InetSocketAddress::IsMatchingType(m_peer))
-            {
-                ret = m_socket->Bind();
-            }
-        }
-
-        if (ret == -1)
-        {
-            NS_FATAL_ERROR("Failed to bind socket");
-        }
-
-        if (InetSocketAddress::IsMatchingType(m_peer))
-        {
-            m_socket->SetIpTos(m_tos); // Affects only IPv4 sockets.
-        }
-        m_socket->Connect(m_peer);
-        m_socket->ShutdownRecv();
-        m_socket->SetConnectCallback(MakeCallback(&ATPBulkSendApplication::ConnectionSucceeded, this),
-                                     MakeCallback(&ATPBulkSendApplication::ConnectionFailed, this));
-        m_socket->SetSendCallback(MakeCallback(&ATPBulkSendApplication::DataSend, this));
-        Ptr<TcpSocketBase> tcpSocket = DynamicCast<TcpSocketBase>(m_socket);
-        if (tcpSocket)
-        {
-            tcpSocket->TraceConnectWithoutContext(
-                "Retransmission",
-                MakeCallback(&ATPBulkSendApplication::PacketRetransmitted, this));
+            ret = m_socket->Bind();
         }
     }
+
+    if (ret == -1)
+    {
+        NS_FATAL_ERROR("Failed to bind socket");
+    }
+
+    if (InetSocketAddress::IsMatchingType(m_peer))
+    {
+        m_socket->SetIpTos(m_tos); // Affects only IPv4 sockets.
+    }
+    m_socket->Connect(m_peer);
+    m_socket->ShutdownRecv();
+    m_socket->SetConnectCallback(MakeCallback(&ATPBulkSendApplication::ConnectionSucceeded, this),
+                                    MakeCallback(&ATPBulkSendApplication::ConnectionFailed, this));
+    m_socket->SetSendCallback(MakeCallback(&ATPBulkSendApplication::DataSend, this));
+    Ptr<TcpSocketBase> tcpSocket = DynamicCast<TcpSocketBase>(m_socket);
+    if (tcpSocket)
+    {
+        tcpSocket->TraceConnectWithoutContext(
+            "Retransmission",
+            MakeCallback(&ATPBulkSendApplication::PacketRetransmitted, this));
+    }
+    
     if (m_connected)
     {
         m_socket->GetSockName(from);
@@ -388,6 +389,33 @@ uint32_t
 ATPBulkSendApplication::GetJobId() const
 {
     return m_jobId;
+}
+
+void
+ATPBulkSendApplication::Setup(Address sinkAddress, Ptr<Socket> socket, uint64_t maxBytes, uint32_t jobId)
+{   
+    m_peer = sinkAddress;
+    m_socket = socket;
+    m_maxBytes = maxBytes;
+    m_jobId = jobId;
+}
+
+void
+ATPBulkSendApplication::SetEnableATPTag(bool enableATPTag)
+{
+    m_enableATPTag = enableATPTag;
+}
+
+bool
+ATPBulkSendApplication::GetEnableATPTag() const
+{
+    return m_enableATPTag;
+}
+
+void
+ATPBulkSendApplication::SetSocket(Ptr<Socket> socket)
+{
+    m_socket = socket;
 }
 
 } // Namespace ns3

@@ -99,6 +99,45 @@ class ATPBulkSendApplication : public Application
      */
     Ptr<Socket> GetSocket() const;
 
+    /**
+     * \brief Setup the application with the given parameters.
+     *
+     * This function sets up the application with the given parameters.
+     *
+     * \param sinkAddress the sink address
+     * \param socket the socket
+     * \param maxBytes the upper bound of bytes to send
+     * \param jobId the job ID
+     */
+    void Setup(Address sinkAddress, Ptr<Socket> socket, uint64_t maxBytes, uint32_t jobId);
+
+    /**
+     * \brief Set the socket for the application.
+     *
+     * This function sets the socket for the application.
+     *
+     * \param socket the socket to set
+     */
+    void SetSocket(Ptr<Socket> socket);
+
+    /**
+     * \brief Set the enable ATPTag attribute.
+     *
+     * This function sets the enable ATPTag attribute.
+     *
+     * \param enableATPTag true if ATPTag should be enabled, false otherwise
+     */
+    void SetEnableATPTag(bool enableATPTag);
+
+    /**
+     * \brief Get the enable ATPTag attribute.
+     *
+     * This function gets the enable ATPTag attribute.
+     *
+     * \return true if ATPTag is enabled, false otherwise
+     */
+    bool GetEnableATPTag() const;
+
   protected:
     void DoDispose() override;
 
