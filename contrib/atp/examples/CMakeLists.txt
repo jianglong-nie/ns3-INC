@@ -43,3 +43,13 @@ build_lib_example(
                       ${libcsma}
                       ${libbridge}
 )
+
+build_lib_example(
+    NAME atp-bridge-cc
+    SOURCE_FILES atp-bridge-cc.cc
+    LIBRARIES_TO_LINK ${libatp}
+                      ${libinternet}
+                      ${libapplications}
+                      ${libcsma}
+                      ${libbridge}
+)
