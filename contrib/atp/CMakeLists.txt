@@ -23,6 +23,11 @@ set(source_files
     model/atp-bridge-channel.cc
     model/atp-bridge-net-device.cc
     helper/atp-bridge-helper.cc
+
+    model/atp-socket-base.cc
+    model/atp-socket-factory.cc
+
+    model/atp-congestion-control.cc
 )
 
 set(header_files
@@ -38,6 +43,11 @@ set(header_files
     model/atp-bridge-channel.h
     model/atp-bridge-net-device.h
     helper/atp-bridge-helper.h
+
+    model/atp-socket-base.h
+    model/atp-socket-factory.h
+
+    model/atp-congestion-control.h
 )
 
 build_lib(
