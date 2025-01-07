@@ -12,112 +12,116 @@ ATPTxBuffer::GetTypeId()
   static TypeId tid = TypeId("ns3::ATPTxBuffer")
     .SetParent<Object>()
     .SetGroupName("Internet")
-    .AddConstructor<ATPTxBuffer>()
-    ;
+    .AddConstructor<ATPTxBuffer>();
   return tid;
 }
 
 ATPTxBuffer::ATPTxBuffer()
-  : m_maxBuffer(32768), // 默认32KB
+  : m_maxBufferSize(32768), // 默认32KB
     m_size(0),
     m_sentSize(0),
-    m_nextSeq(0)
+    m_packetNum(0)
 {
   NS_LOG_FUNCTION(this);
 }
 
 ATPTxBuffer::~ATPTxBuffer()
 {
-  NS_LOG_FUNCTION(this);
-  
-  // 清理待发送列表
-  for (auto it = m_pendingList.begin(); it != m_pendingList.end(); ++it)
-  {
-    delete *it;
-  }
-  m_pendingList.clear();
-  
-  // 清理已发送列表
-  for (auto it = m_sentList.begin(); it != m_sentList.end(); ++it)
-  {
-    delete *it;
-  }
-  m_sentList.clear();
+    NS_LOG_FUNCTION(this);
+    
+    // 清理待发送队列
+    while (!m_pendingQueue.empty())
+    {
+        ATPTxItem* item = m_pendingQueue.front();
+        m_pendingQueue.pop();
+        delete item;
+    }
+    
+    // 清理已发送队列
+    while (!m_sentQueue.empty())
+    {
+        ATPTxItem* item = m_sentQueue.front();
+        m_sentQueue.pop();
+        delete item;
+    }
 }
 
 bool
 ATPTxBuffer::Add(Ptr<Packet> p)
 {
-  NS_LOG_FUNCTION(this << p);
-  
-  if (p->GetSize() + m_size > m_maxBuffer)
-  {
-    NS_LOG_WARN("Buffer full, packet dropped");
-    return false;
-  }
-  
-  auto item = new ATPTxItem();
-  item->m_packet = p->Copy();
-  item->m_startSeq = m_nextSeq;
-  m_nextSeq += p->GetSize();
+    NS_LOG_FUNCTION(this << p);
+    
+    if (p->GetSize() + m_size > m_maxBufferSize)
+    {
+        NS_LOG_WARN("Buffer full, packet dropped");
+        return false;
+    }
+    
+    auto item = new ATPTxItem();
+    item->m_packet = p->Copy();
+    m_packetNum++;
+    item->m_packetId = m_packetNum;
 
-  m_pendingList.push_back(item);
-  m_size += p->GetSize();
-  
-  return true;
+    m_pendingQueue.push(item);
+    m_size += p->GetSize();
+    
+    return true;
 }
 
 Ptr<Packet>
 ATPTxBuffer::NextPacket()
 {
-  NS_LOG_FUNCTION(this);
-  
-  uint32_t currentTime = static_cast<uint32_t>(Simulator::Now().GetMilliSeconds());
-  
-  // 最后发送新的包
-  if (!m_pendingList.empty())
-  {
-    ATPTxItem* item = m_pendingList.front();
-    m_pendingList.pop_front();
-    item->m_lastSent = currentTime;
-    m_sentList.push_back(item);
-    m_sentSize += item->m_packet->GetSize();
-    
-    return item->m_packet;
-  }
-  
-  return nullptr;
-}
+    NS_LOG_FUNCTION(this);
 
-void
-ATPTxBuffer::Ack(const SequenceNumber32& startSeq)
-{
-  NS_LOG_FUNCTION(this << startSeq);
-  
-  auto it = m_sentList.begin();
-  while (it != m_sentList.end())
-  {
-    ATPTxItem* item = *it;
-    
-    // 直接匹配包的起始序号
-    if (item->m_startSeq == startSeq)
+    if (m_pendingQueue.empty())
     {
-      // 标记为已确认
-      item->m_acked = true;
-      
-      // 释放已确认的包
-      m_sentSize -= item->m_packet->GetSize();
-      m_size -= item->m_packet->GetSize();
-      
-      it = m_sentList.erase(it);
-      delete item;
-      return;  // 找到并处理了对应的包，可以直接返回
+        return nullptr;
     }
     else
     {
-      ++it;
+        uint32_t currentTime = static_cast<uint32_t>(Simulator::Now().GetMilliSeconds());
+        
+        // 最后发送新的包
+        ATPTxItem* item = m_pendingQueue.front();
+        m_pendingQueue.pop();
+        m_size -= item->m_packet->GetSize();
+
+        // 更新发送时间，将item存入已发送队列
+        item->m_lastSentTime = currentTime;
+        m_sentQueue.push(item);
+        m_sentSize += item->m_packet->GetSize();
+        
+        return item->m_packet;
     }
-  }
+}
+
+void
+ATPTxBuffer::Ack(uint32_t packetId)
+{
+    NS_LOG_FUNCTION(this << packetId);
+    
+    // 从已发送队列中移除已确认的包
+    // 如果已确认的包在队列中，则移除该包
+    // 对于队列中小于已确认packetId的包，则将这些包同样pop
+    while (!m_sentQueue.empty())
+    {
+        ATPTxItem* item = m_sentQueue.front();
+        if (item->m_packetId == packetId)
+        {
+            m_sentQueue.pop();
+            m_sentSize -= item->m_packet->GetSize();
+            delete item;
+            break;
+        }
+        else
+        {
+            // 默认m_sentQueue按packetId顺序排序
+            // 因为考虑到NextPacket()是按packetId顺序存入m_sentQueue的
+            m_sentQueue.pop();
+            m_sentSize -= item->m_packet->GetSize();
+            delete item;
+        }
+    }
 }
 
 uint32_t
@@ -129,7 +133,7 @@ ATPTxBuffer::Size() const
 uint32_t 
 ATPTxBuffer::Available() const
 {
-  return m_maxBuffer - m_size;
+  return m_maxBufferSize - m_size;
 }
 
 bool
@@ -141,35 +145,7 @@ ATPTxBuffer::IsEmpty() const
 void
 ATPTxBuffer::SetMaxBufferSize(uint32_t size)
 {
-  m_maxBuffer = size;
-}
-
-std::vector<Ptr<Packet>>
-ATPTxBuffer::GetRetransmitPackets(uint32_t currentTime, uint32_t rto, uint32_t maxRetrans)
-{
-  NS_LOG_FUNCTION(this << currentTime << rto);
-  
-  std::vector<Ptr<Packet>> packets;
-  
-  for (auto it = m_sentList.begin(); it != m_sentList.end(); ++it)
-  {
-    ATPTxItem* item = *it;
-    
-    // 检查未确认的包是否需要重传
-    if (!item->m_acked && 
-        (currentTime - item->m_lastSent) >= rto && 
-        item->m_retransCount < maxRetrans)
-    {
-      item->m_retransCount++;
-      item->m_lastSent = currentTime;
-      packets.push_back(item->m_packet);
-      
-      NS_LOG_INFO("Packet with seq=" << item->m_startSeq 
-                 << " needs retransmission, count=" << item->m_retransCount);
-    }
-  }
-  
-  return packets;
+  m_maxBufferSize = size;
 }
 
 } // namespace ns3
