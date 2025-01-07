@@ -1,0 +1,286 @@
+#include "atp-header.h"
+#include "atp-l4-protocol.h"
+#include "atp-socket.h"
+#include "atp-socket-factory.h"
+
+#include "ns3/ipv4-end-point-demux.h"
+#include "ns3/ipv4-end-point.h"
+#include "ns3/ipv4-route.h"
+#include "ns3/ipv4.h"
+
+#include "ns3/assert.h"
+#include "ns3/log.h"
+#include "ns3/node.h"
+#include "ns3/object-map.h"
+#include "ns3/packet.h"
+
+#include <unordered_map>
+
+namespace ns3
+{
+
+NS_LOG_COMPONENT_DEFINE("ATPL4Protocol");
+
+NS_OBJECT_ENSURE_REGISTERED(ATPL4Protocol);
+
+// TBD: Need to assign a protocol number for ATP
+const uint8_t ATPL4Protocol::PROT_NUMBER = 0xFE; 
+
+TypeId
+ATPL4Protocol::GetTypeId()
+{
+    static TypeId tid =
+        TypeId("ns3::ATPL4Protocol")
+            .SetParent<IpL4Protocol>()
+            .SetGroupName("Internet")
+            .AddConstructor<ATPL4Protocol>()
+            .AddAttribute("SocketList",
+                         "The list of sockets associated to this protocol.",
+                         ObjectMapValue(),
+                         MakeObjectMapAccessor(&ATPL4Protocol::m_sockets),
+                         MakeObjectMapChecker<ATPSocket>());
+    return tid;
+}
+
+ATPL4Protocol::ATPL4Protocol()
+    : m_endPoints(new Ipv4EndPointDemux())
+{
+    NS_LOG_FUNCTION(this);
+}
+
+ATPL4Protocol::~ATPL4Protocol()
+{
+    NS_LOG_FUNCTION(this);
+}
+
+void
+ATPL4Protocol::SetNode(Ptr<Node> node)
+{
+    m_node = node;
+}
+
+// 
+void
+ATPL4Protocol::NotifyNewAggregate()
+{
+    NS_LOG_FUNCTION(this);
+    Ptr<Node> node = this->GetObject<Node>();
+    Ptr<Ipv4> ipv4 = this->GetObject<Ipv4>();
+
+    if (!m_node)
+    {
+        if (node && ipv4)
+        {
+            this->SetNode(node);
+            Ptr<ATPSocketFactory> atpFactory = CreateObject<ATPSocketFactory>();
+            atpFactory->SetATP(this);
+            node->AggregateObject(atpFactory);
+        }
+    }
+
+    if (ipv4 && m_downTarget.IsNull())
+    {
+        ipv4->Insert(this);
+        this->SetDownTarget(MakeCallback(&Ipv4::Send, ipv4));
+    }
+    
+    IpL4Protocol::NotifyNewAggregate();
+}
+
+int
+ATPL4Protocol::GetProtocolNumber() const
+{
+    return PROT_NUMBER;
+}
+
+void
+ATPL4Protocol::DoDispose()
+{
+    NS_LOG_FUNCTION(this);
+    for (auto i = m_sockets.begin(); i != m_sockets.end(); i++)
+    {
+        i->second = nullptr;
+    }
+    m_sockets.clear();
+
+    if (m_endPoints != nullptr)
+    {
+        delete m_endPoints;
+        m_endPoints = nullptr;
+    }
+    
+    m_node = nullptr;
+    m_downTarget.Nullify();
+    IpL4Protocol::DoDispose();
+}
+
+Ptr<Socket>
+ATPL4Protocol::CreateSocket()
+{
+    NS_LOG_FUNCTION(this);
+    Ptr<ATPSocket> socket = CreateObject<ATPSocket>();
+    socket->SetNode(m_node);
+    socket->SetATP(this);
+    m_sockets[m_socketIndex++] = socket;
+    return socket;
+}
+
+bool
+ATPL4Protocol::RemoveSocket(Ptr<ATPSocket> socket)
+{
+    NS_LOG_FUNCTION(this << socket);
+
+    for (auto& socketItem : m_sockets)
+    {
+        if (socketItem.second == socket)
+        {
+            socketItem.second = nullptr;
+            m_sockets.erase(socketItem.first);
+            return true;
+        }
+    }
+    return false;
+}
+
+Ipv4EndPoint*
+ATPL4Protocol::Allocate()
+{
+    NS_LOG_FUNCTION(this);
+    return m_endPoints->Allocate();
+}
+
+Ipv4EndPoint*
+ATPL4Protocol::Allocate(Ipv4Address address)
+{
+    NS_LOG_FUNCTION(this << address);
+    return m_endPoints->Allocate(address);
+}
+
+Ipv4EndPoint*
+ATPL4Protocol::Allocate(Ptr<NetDevice> boundNetDevice, uint16_t port)
+{
+    NS_LOG_FUNCTION(this << boundNetDevice << port);
+    return m_endPoints->Allocate(boundNetDevice, port);
+}
+
+Ipv4EndPoint*
+ATPL4Protocol::Allocate(Ptr<NetDevice> boundNetDevice, Ipv4Address address, uint16_t port)
+{
+    NS_LOG_FUNCTION(this << boundNetDevice << address << port);
+    return m_endPoints->Allocate(boundNetDevice, address, port);
+}
+
+Ipv4EndPoint*
+ATPL4Protocol::Allocate(Ptr<NetDevice> boundNetDevice,
+                        Ipv4Address localAddress,
+                        uint16_t localPort,
+                        Ipv4Address peerAddress,
+                        uint16_t peerPort)
+{
+    NS_LOG_FUNCTION(this << boundNetDevice << localAddress << localPort << peerAddress << peerPort);
+    return m_endPoints->Allocate(boundNetDevice, localAddress, localPort, peerAddress, peerPort);
+}
+
+void
+ATPL4Protocol::DeAllocate(Ipv4EndPoint* endPoint)
+{
+    NS_LOG_FUNCTION(this << endPoint);
+    m_endPoints->DeAllocate(endPoint);
+}
+
+// 需要做相关修改
+IpL4Protocol::RxStatus
+ATPL4Protocol::Receive(Ptr<Packet> packet, const Ipv4Header& header, Ptr<Ipv4Interface> interface)
+{
+    NS_LOG_FUNCTION(this << packet << header);
+    ATPHeader atpHeader;
+
+    // 只是peek ATP头部
+    packet->PeekHeader(atpHeader);
+
+    // 查找匹配的端点
+    NS_LOG_DEBUG("Looking up dst " << header.GetDestination() << " port "
+                                  << atpHeader.GetDestinationPort());
+    Ipv4EndPointDemux::EndPoints endPoints = m_endPoints->Lookup(header.GetDestination(),
+                                                                atpHeader.GetDestinationPort(),
+                                                                header.GetSource(),
+                                                                atpHeader.GetSourcePort(),
+                                                                interface);
+    if (endPoints.empty())
+    {
+        NS_LOG_LOGIC("RX_ENDPOINT_UNREACH");
+        return IpL4Protocol::RX_ENDPOINT_UNREACH;
+    }
+
+    // 移除ATP头部
+    packet->RemoveHeader(atpHeader);
+    
+    // 将数据包转发给所有匹配的端点
+    NS_ASSERT_MSG(endPoints.size() == 1, "ATP expects exactly one endpoint");
+    NS_LOG_LOGIC("ATPL4Protocol " << this
+                                  << " received a packet and"
+                                     " now forwarding it up to endpoint/socket");
+
+    (*endPoints.begin())->ForwardUp(packet, header, atpHeader.GetSourcePort(), interface);
+
+    return IpL4Protocol::RX_OK;
+}
+
+void
+ATPL4Protocol::Send(Ptr<Packet> packet,
+                   Ipv4Address saddr,
+                   Ipv4Address daddr,
+                   uint16_t sport,
+                   uint16_t dport)
+{
+    NS_LOG_FUNCTION(this << packet << saddr << daddr << sport << dport);
+
+    ATPHeader atpHeader;
+    atpHeader.SetDestinationPort(dport);
+    atpHeader.SetSourcePort(sport);
+    // ATP特有的头部字段设置可以在这里添加
+    // 例如：序列号、确认号等
+
+    packet->AddHeader(atpHeader);
+
+    m_downTarget(packet, saddr, daddr, PROT_NUMBER, nullptr);
+}
+
+void
+ATPL4Protocol::Send(Ptr<Packet> packet,
+                   Ipv4Address saddr,
+                   Ipv4Address daddr,
+                   uint16_t sport,
+                   uint16_t dport,
+                   Ptr<Ipv4Route> route)
+{
+    NS_LOG_FUNCTION(this << packet << saddr << daddr << sport << dport << route);
+
+    // 1. 创建并设置ATP头部
+    ATPHeader atpHeader;
+    atpHeader.SetDestinationPort(dport);
+    atpHeader.SetSourcePort(sport);
+    // 设置ATP特有的头部字段(序列号等)
+    
+    // 2. 添加校验和（考虑怎么去写）
+
+    // 3. 添加头部到数据包
+    packet->AddHeader(atpHeader);
+
+    m_downTarget(packet, saddr, daddr, PROT_NUMBER, route);
+}
+
+void
+ATPL4Protocol::SetDownTarget(IpL4Protocol::DownTargetCallback callback)
+{
+    NS_LOG_FUNCTION(this);
+    m_downTarget = callback;
+}
+
+IpL4Protocol::DownTargetCallback
+ATPL4Protocol::GetDownTarget() const
+{
+    return m_downTarget;
+}
+
+} // namespace ns3
