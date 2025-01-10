@@ -24,7 +24,7 @@ NS_LOG_COMPONENT_DEFINE("ATPL4Protocol");
 NS_OBJECT_ENSURE_REGISTERED(ATPL4Protocol);
 
 // TBD: Need to assign a protocol number for ATP
-const uint8_t ATPL4Protocol::PROT_NUMBER = 0xFE; 
+const uint8_t ATPL4Protocol::PROT_NUMBER = 142; 
 
 TypeId
 ATPL4Protocol::GetTypeId()
@@ -226,6 +226,15 @@ ATPL4Protocol::Receive(Ptr<Packet> packet, const Ipv4Header& header, Ptr<Ipv4Int
     return IpL4Protocol::RX_OK;
 }
 
+IpL4Protocol::RxStatus
+ATPL4Protocol::Receive(Ptr<Packet> packet,
+                       const Ipv6Header& header,
+                       Ptr<Ipv6Interface> interface)
+{
+    NS_LOG_FUNCTION(this << packet << header);
+    return IpL4Protocol::RX_ENDPOINT_UNREACH;
+}
+
 void
 ATPL4Protocol::Send(Ptr<Packet> packet,
                    Ipv4Address saddr,
@@ -277,10 +286,23 @@ ATPL4Protocol::SetDownTarget(IpL4Protocol::DownTargetCallback callback)
     m_downTarget = callback;
 }
 
+void
+ATPL4Protocol::SetDownTarget6(IpL4Protocol::DownTargetCallback6 callback)
+{
+    NS_LOG_FUNCTION(this);
+    m_downTarget6 = callback;
+}
+
 IpL4Protocol::DownTargetCallback
 ATPL4Protocol::GetDownTarget() const
 {
     return m_downTarget;
+}
+
+IpL4Protocol::DownTargetCallback6
+ATPL4Protocol::GetDownTarget6() const
+{
+    return m_downTarget6;
 }
 
 } // namespace ns3

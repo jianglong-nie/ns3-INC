@@ -41,17 +41,32 @@ class ATPSocket : public Socket
     ATPSocket();
     ~ATPSocket() override;
 
-    // 设置和获取节点，ATP协议
+    // 需要实现的纯虚函数
     void SetNode(Ptr<Node> node);
-    Ptr<Node> GetNode() const;
+    Ptr<Node> GetNode() const override;
+
     void SetATP(Ptr<ATPL4Protocol> atp);
     Ptr<ATPL4Protocol> GetATP() const;
-    // 获取可发送和可读数据量
+
     void SetRxBufferSize(uint32_t size);
     uint32_t GetRxBufferSize() const;
 
+    uint32_t GetRxAvailable() const override;
+    uint32_t GetTxAvailable() const override;
+
+    SocketErrno GetErrno() const override;
+    SocketType GetSocketType() const override;
+
+    int GetSockName(Address& address) const override;
+    int GetPeerName(Address& address) const override;
+
+    bool SetAllowBroadcast(bool allowBroadcast) override;
+    bool GetAllowBroadcast() const override;
+
+
     // 发送数据到下层，会调用DoSend
     int Send(Ptr<Packet> p, uint32_t flags) override;
+    int SendTo(Ptr<Packet> p, uint32_t flags, const Address& address) override;
     
     // 给应用层设置的回调函数，用于应用层接收数据
     Ptr<Packet> Recv(uint32_t maxSize, uint32_t flags) override;
@@ -61,6 +76,7 @@ class ATPSocket : public Socket
     int FinishBind();
     int Bind() override;  // 绑定任意地址
     int Bind(const Address& address) override;  // 绑定地址
+    int Bind6() override;  // 绑定IPv6地址
     void BindToNetDevice(Ptr<NetDevice> netdevice) override; // 绑定到网络设备
     
     int Connect(const Address& address) override;  // 连接对端
@@ -113,7 +129,8 @@ class ATPSocket : public Socket
     bool m_shutdownSend;         //!< 发送不再允许
     bool m_shutdownRecv;         //!< 接收不再允许
     bool m_connected;            //!< 连接已建立
-    
+
+    bool m_allowBroadcast{false};
     Ptr<ATPTxBuffer> m_txBuffer;       // 发送缓冲区
     std::queue<std::pair<Ptr<Packet>, Address>> m_deliveryQueue; // 接收队列
     uint32_t m_rcvBufSize;             // 接收缓冲区大小

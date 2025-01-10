@@ -23,8 +23,8 @@ namespace ns3
 
 class Address;
 class Socket;
-class TcpHeader;
-class TcpSocketBase;
+class ATPHeader;
+class ATPSocket;
 
 /**
  * \ingroup applications
@@ -159,7 +159,6 @@ class ATPBulkSendApplication : public Application
     Address m_peer;                      //!< Peer address
     Address m_local;                     //!< Local address to bind to
     bool m_connected;                    //!< True if connected
-    uint8_t m_tos;                       //!< The packets Type of Service
     uint32_t m_sendSize;                 //!< Size of data to send each time
     uint64_t m_maxBytes;                 //!< Limit total number of bytes sent
     uint64_t m_totBytes;                 //!< Total bytes sent so far
@@ -174,12 +173,12 @@ class ATPBulkSendApplication : public Application
     TracedCallback<Ptr<const Packet>> m_txTrace;
 
     /// Traced Callback: retransmitted packets
-    TracedCallback<Ptr<const Packet>,
+    /*TracedCallback<Ptr<const Packet>,
                    const TcpHeader&,
                    const Address&,
                    const Address&,
                    Ptr<const TcpSocketBase>>
-        m_retransmissionTrace;
+        m_retransmissionTrace;*/
 
     /// Callback for tracing the packet Tx events, includes source, destination,  the packet sent,
     /// and header
@@ -215,11 +214,11 @@ class ATPBulkSendApplication : public Application
      *  \param peerAddr the peer address
      *  \param socket the socket that retransmitted the packet
      */
-    void PacketRetransmitted(Ptr<const Packet> p,
+    /*void PacketRetransmitted(Ptr<const Packet> p,
                              const TcpHeader& header,
                              const Address& localAddr,
                              const Address& peerAddr,
-                             Ptr<const TcpSocketBase> socket);
+                             Ptr<const TcpSocketBase> socket);*/
 };
 
 } // namespace ns3

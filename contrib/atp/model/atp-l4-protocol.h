@@ -13,8 +13,10 @@ namespace ns3
 
 class Node;
 class Socket;
-class Ipv4EndPointDemux;
 class Ipv4EndPoint;
+class Ipv4EndPointDemux;
+class Ipv6EndPoint;
+class Ipv6EndPointDemux;
 class ATPSocket;
 class NetDevice;
 
@@ -68,9 +70,15 @@ class ATPL4Protocol : public IpL4Protocol
     IpL4Protocol::RxStatus Receive(Ptr<Packet> p,
                                  const Ipv4Header& header,
                                  Ptr<Ipv4Interface> interface) override;
+    
+    IpL4Protocol::RxStatus Receive(Ptr<Packet> p,
+                                 const Ipv6Header& header,
+                                 Ptr<Ipv6Interface> interface) override;
 
     void SetDownTarget(IpL4Protocol::DownTargetCallback cb) override;
+    void SetDownTarget6(IpL4Protocol::DownTargetCallback6 cb) override;
     IpL4Protocol::DownTargetCallback GetDownTarget() const override;
+    IpL4Protocol::DownTargetCallback6 GetDownTarget6() const override;
   
   protected:
     void DoDispose() override;
@@ -84,6 +92,7 @@ class ATPL4Protocol : public IpL4Protocol
         m_sockets;             //!< Unordered map of socket IDs and corresponding sockets
     uint64_t m_socketIndex{0}; //!< Index of the next socket to be created
     IpL4Protocol::DownTargetCallback m_downTarget;   //!< Callback to send packets over IPv4
+    IpL4Protocol::DownTargetCallback6 m_downTarget6; //!< Callback to send packets over IPv6
 };
 
 } // namespace ns3

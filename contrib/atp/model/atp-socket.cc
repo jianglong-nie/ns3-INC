@@ -50,13 +50,16 @@ ATPSocket::GetTypeId()
 }
 
 ATPSocket::ATPSocket()
-    : m_node(nullptr),
+    : m_endPoint(nullptr),
+      m_node(nullptr),
       m_atp(nullptr),
-      m_endPoint(nullptr),
       m_errno(ERROR_NOTERROR),
       m_shutdownSend(false),
       m_shutdownRecv(false),
-      m_txBuffer(nullptr),
+      m_connected(false),
+      m_rcvBufSize(32768),
+      m_rxAvailable(0),
+      m_txBuffer(CreateObject<ATPTxBuffer>()),
       m_congestionControl(nullptr),
       m_nextSeqNo(0),
       m_highestRxSeqNo(0),
@@ -122,6 +125,84 @@ ATPSocket::GetRxBufferSize() const
 {
     NS_LOG_FUNCTION(this);
     return m_rcvBufSize;
+}
+
+uint32_t
+ATPSocket::GetRxAvailable() const
+{
+    NS_LOG_FUNCTION(this);
+    return m_rxAvailable;
+}
+
+uint32_t
+ATPSocket::GetTxAvailable() const
+{
+    NS_LOG_FUNCTION(this);
+    return MAX_IPV4_ATP_DATAGRAM_SIZE;
+}
+
+Socket::SocketErrno
+ATPSocket::GetErrno() const
+{
+    NS_LOG_FUNCTION(this);
+    return m_errno;
+}
+
+Socket::SocketType
+ATPSocket::GetSocketType() const
+{
+    NS_LOG_FUNCTION(this);
+    return NS3_SOCK_SEQPACKET;
+}
+
+int
+ATPSocket::GetSockName(Address& address) const
+{
+    NS_LOG_FUNCTION(this << address);
+    if (m_endPoint != nullptr)
+    {
+        address = InetSocketAddress(m_endPoint->GetLocalAddress(), m_endPoint->GetLocalPort());
+    }
+    else
+    {
+        address = InetSocketAddress(Ipv4Address::GetZero(), 0);
+    }
+    return 0;
+}
+
+int
+ATPSocket::GetPeerName(Address& address) const
+{
+    NS_LOG_FUNCTION(this << address);
+    if (!m_connected)
+    {
+        m_errno = ERROR_NOTCONN;
+        return -1;
+    }
+    if (Ipv4Address::IsMatchingType(m_defaultAddress))
+    {
+        address = InetSocketAddress(Ipv4Address::ConvertFrom(m_defaultAddress), m_defaultPort);
+    }
+    else
+    {
+        NS_ASSERT_MSG(false, "unexpected address type");
+    }
+    return 0;
+}
+
+bool
+ATPSocket::SetAllowBroadcast(bool allowBroadcast)
+{
+    NS_LOG_FUNCTION(this << allowBroadcast);
+    m_allowBroadcast = allowBroadcast;
+    return true;
+}
+
+bool
+ATPSocket::GetAllowBroadcast() const
+{
+    NS_LOG_FUNCTION(this);
+    return m_allowBroadcast;
 }
 
 void
@@ -230,6 +311,13 @@ ATPSocket::Bind(const Address& address)
     return FinishBind();
 }
 
+int
+ATPSocket::Bind6()
+{
+    NS_LOG_FUNCTION(this);
+    return -1;
+}
+
 void
 ATPSocket::BindToNetDevice(Ptr<NetDevice> netdevice)
 {
@@ -312,20 +400,7 @@ ATPSocket::Send(Ptr<Packet> p, uint32_t flags)
         return -1;
     }
 
-    if (!m_txBuffer->Add(p))
-    {
-        m_errno = ERROR_MSGSIZE;
-        return -1;
-    }
-
-    if (m_shutdownSend)
-    {
-        m_errno = ERROR_SHUTDOWN;
-        return -1;
-    }
-
-    Ptr<Packet> packet = m_txBuffer->NextPacket();
-    return DoSend(packet);
+    return DoSend(p);
 }
 
 int
@@ -360,7 +435,8 @@ int
 ATPSocket::DoSendTo(Ptr<Packet> p, Ipv4Address dest, uint16_t port)
 {
     NS_LOG_FUNCTION(this << p << dest << port);
-        // 1. 检查是否绑定了端口
+
+    // 1. 检查是否绑定了端口
     if (m_endPoint == nullptr)
     {
         if (Bind() == -1)
@@ -376,10 +452,21 @@ ATPSocket::DoSendTo(Ptr<Packet> p, Ipv4Address dest, uint16_t port)
         return -1;
     }
 
+    Ptr<Ipv4> ipv4 = m_node->GetObject<Ipv4>();
+
     if (m_endPoint->GetLocalAddress() != Ipv4Address::GetAny())
     {
+
+        if (!m_txBuffer->Add(p))
+        {
+            m_errno = ERROR_MSGSIZE;
+            return -1;
+        }
+
+        Ptr<Packet> packet = m_txBuffer->NextPacket();
+        NS_LOG_INFO("Send packet to " << dest << ":" << port);
         // 5. 发送数据包
-        m_atp->Send(p->Copy(),
+        m_atp->Send(packet->Copy(),
                     m_endPoint->GetLocalAddress(),
                     dest,
                     m_endPoint->GetLocalPort(),
@@ -389,7 +476,59 @@ ATPSocket::DoSendTo(Ptr<Packet> p, Ipv4Address dest, uint16_t port)
         NotifyDataSent(p->GetSize());
         return p->GetSize();
     }
+    else if (ipv4->GetRoutingProtocol())
+    {
+        Ipv4Header header;
+        header.SetDestination(dest);
+        header.SetProtocol(ATPL4Protocol::PROT_NUMBER);
+        Socket::SocketErrno errno_;
+        Ptr<Ipv4Route> route;
+        Ptr<NetDevice> oif = m_boundnetdevice; // specify non-zero if bound to a specific device
+        // TBD-- we could cache the route and just check its validity
+        route = ipv4->GetRoutingProtocol()->RouteOutput(p, header, oif, errno_);
+        if (route)
+        {
+            NS_LOG_LOGIC("Route exists");
+
+            header.SetSource(route->GetSource());
+            m_atp->Send(p->Copy(),
+                        header.GetSource(),
+                        header.GetDestination(),
+                        m_endPoint->GetLocalPort(),
+                        port,
+                        route);
+            NotifyDataSent(p->GetSize());
+            return p->GetSize();
+        }
+        else
+        {
+            NS_LOG_LOGIC("No route to destination");
+            NS_LOG_ERROR("ERROR_NOROUTETOHOST");
+            m_errno = ERROR_NOROUTETOHOST;
+            return -1;
+        }
+    }
     return 0;
+}
+
+int
+ATPSocket::SendTo(Ptr<Packet> p, uint32_t flags, const Address& address)
+{
+    NS_LOG_FUNCTION(this << p << flags << address);
+
+    if (InetSocketAddress::IsMatchingType(address))
+    {
+        InetSocketAddress transport = InetSocketAddress::ConvertFrom(address);
+        Ipv4Address ipv4 = transport.GetIpv4();
+        uint16_t port = transport.GetPort();
+        return DoSendTo(p, ipv4, port);
+    }
+    else
+    {
+        NS_LOG_ERROR("Not IsMatchingType");
+        m_errno = ERROR_INVAL;
+        return -1;
+    }
 }
 
 Ptr<Packet>

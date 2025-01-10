@@ -17,8 +17,8 @@
 #include "ns3/simulator.h"
 #include "ns3/socket-factory.h"
 #include "ns3/socket.h"
-#include "ns3/tcp-socket-base.h"
-#include "ns3/tcp-socket-factory.h"
+#include "ns3/atp-socket.h"
+#include "ns3/atp-socket-factory.h"
 #include "ns3/trace-source-accessor.h"
 #include "ns3/uinteger.h"
 
@@ -39,9 +39,9 @@ ATPBulkSendApplication::GetTypeId()
             .AddConstructor<ATPBulkSendApplication>()
             .AddAttribute("SendSize",
                           "The amount of data to send each time.",
-                          UintegerValue(512),
+                          UintegerValue(248), // 每次发送的数据量默认值最大为248字节，正如atp论文中所写到的
                           MakeUintegerAccessor(&ATPBulkSendApplication::m_sendSize),
-                          MakeUintegerChecker<uint32_t>(1))
+                          MakeUintegerChecker<uint32_t>(1)) // 最小值为1
             .AddAttribute("Remote",
                           "The address of the destination",
                           AddressValue(),
@@ -53,12 +53,6 @@ ATPBulkSendApplication::GetTypeId()
                           AddressValue(),
                           MakeAddressAccessor(&ATPBulkSendApplication::m_local),
                           MakeAddressChecker())
-            .AddAttribute("Tos",
-                          "The Type of Service used to send IPv4 packets. "
-                          "All 8 bits of the TOS byte are set (including ECN bits).",
-                          UintegerValue(0),
-                          MakeUintegerAccessor(&ATPBulkSendApplication::m_tos),
-                          MakeUintegerChecker<uint8_t>())
             .AddAttribute("MaxBytes",
                           "The total number of bytes to send. "
                           "Once these bytes are sent, "
@@ -69,14 +63,9 @@ ATPBulkSendApplication::GetTypeId()
                           MakeUintegerChecker<uint64_t>())
             .AddAttribute("Protocol",
                           "The type of protocol to use.",
-                          TypeIdValue(TcpSocketFactory::GetTypeId()),
+                          TypeIdValue(ATPSocketFactory::GetTypeId()),
                           MakeTypeIdAccessor(&ATPBulkSendApplication::m_tid),
                           MakeTypeIdChecker())
-            .AddAttribute("EnableATPHeader",
-                          "Add ATPHeader to each packet",
-                          BooleanValue(false),
-                          MakeBooleanAccessor(&ATPBulkSendApplication::m_enableATPHeader),
-                          MakeBooleanChecker())
             .AddAttribute("EnableATPTag",
                           "Add ATPTag to each packet",
                           BooleanValue(false),
@@ -94,11 +83,11 @@ ATPBulkSendApplication::GetTypeId()
             .AddTraceSource("TxWithATPHeader",
                             "A new packet is created with ATPHeader",
                             MakeTraceSourceAccessor(&ATPBulkSendApplication::m_txTraceWithATPHeader),
-                            "ns3::PacketSink::ATPHeaderCallback")
-            .AddTraceSource("TcpRetransmission",
-                            "The TCP socket retransmitted a packet",
+                            "ns3::PacketSink::ATPHeaderCallback");
+            /*.AddTraceSource("ATPRetransmission",
+                            "The ATP socket retransmitted a packet",
                             MakeTraceSourceAccessor(&ATPBulkSendApplication::m_retransmissionTrace),
-                            "ns3::TcpSocketBase::RetransmissionCallback");
+                            "ns3::ATPSocket::RetransmissionCallback");*/
 
     return tid;
 }
@@ -153,63 +142,57 @@ ATPBulkSendApplication::StartApplication() // Called at time specified by Start
     if (!m_socket)
     {
         m_socket = Socket::CreateSocket(GetNode(), m_tid);
-    }
-    int ret = -1;
+        int ret = -1;
 
-    // Fatal error if socket type is not NS3_SOCK_STREAM or NS3_SOCK_SEQPACKET
-    if (m_socket->GetSocketType() != Socket::NS3_SOCK_STREAM &&
-        m_socket->GetSocketType() != Socket::NS3_SOCK_SEQPACKET)
-    {
-        NS_FATAL_ERROR("Using BulkSend with an incompatible socket type. "
-                        "BulkSend requires SOCK_STREAM or SOCK_SEQPACKET. "
-                        "In other words, use TCP instead of UDP.");
-    }
-
-    NS_ABORT_MSG_IF(m_peer.IsInvalid(), "'Remote' attribute not properly set");
-
-    if (!m_local.IsInvalid())
-    {
-        NS_ABORT_MSG_IF((Inet6SocketAddress::IsMatchingType(m_peer) &&
-                            InetSocketAddress::IsMatchingType(m_local)) ||
-                            (InetSocketAddress::IsMatchingType(m_peer) &&
-                                Inet6SocketAddress::IsMatchingType(m_local)),
-                        "Incompatible peer and local address IP version");
-        ret = m_socket->Bind(m_local);
-    }
-    else
-    {
-        if (Inet6SocketAddress::IsMatchingType(m_peer))
+        // Fatal error if socket type is not NS3_SOCK_STREAM or NS3_SOCK_SEQPACKET
+        if (m_socket->GetSocketType() != Socket::NS3_SOCK_STREAM &&
+            m_socket->GetSocketType() != Socket::NS3_SOCK_SEQPACKET)
         {
-            ret = m_socket->Bind6();
+            NS_FATAL_ERROR("Using BulkSend with an incompatible socket type. "
+                           "BulkSend requires SOCK_STREAM or SOCK_SEQPACKET. "
+                           "In other words, use TCP instead of UDP.");
         }
-        else if (InetSocketAddress::IsMatchingType(m_peer))
+
+        NS_ABORT_MSG_IF(m_peer.IsInvalid(), "'Remote' attribute not properly set");
+
+        if (!m_local.IsInvalid())
         {
-            ret = m_socket->Bind();
+            NS_ABORT_MSG_IF((Inet6SocketAddress::IsMatchingType(m_peer) &&
+                             InetSocketAddress::IsMatchingType(m_local)) ||
+                                (InetSocketAddress::IsMatchingType(m_peer) &&
+                                 Inet6SocketAddress::IsMatchingType(m_local)),
+                            "Incompatible peer and local address IP version");
+            ret = m_socket->Bind(m_local);
         }
-    }
+        else
+        {
+            if (Inet6SocketAddress::IsMatchingType(m_peer))
+            {
+                ret = m_socket->Bind6();
+            }
+            else if (InetSocketAddress::IsMatchingType(m_peer))
+            {
+                ret = m_socket->Bind();
+            }
+        }
 
-    if (ret == -1)
-    {
-        NS_FATAL_ERROR("Failed to bind socket");
+        if (ret == -1)
+        {
+            NS_FATAL_ERROR("Failed to bind socket");
+        }
+        m_socket->SetConnectCallback(MakeCallback(&ATPBulkSendApplication::ConnectionSucceeded, this),
+                                     MakeCallback(&ATPBulkSendApplication::ConnectionFailed, this));
+        m_socket->SetSendCallback(MakeCallback(&ATPBulkSendApplication::DataSend, this));
+        m_socket->Connect(m_peer);
+        //m_socket->ShutdownRecv(); 
+        /*Ptr<ATPSocket> atpSocket = DynamicCast<ATPSocket>(m_socket);
+        if (atpSocket)
+        {
+            atpSocket->TraceConnectWithoutContext(
+                "Retransmission",
+                MakeCallback(&ATPBulkSendApplication::PacketRetransmitted, this));
+        }*/
     }
-
-    if (InetSocketAddress::IsMatchingType(m_peer))
-    {
-        m_socket->SetIpTos(m_tos); // Affects only IPv4 sockets.
-    }
-    m_socket->Connect(m_peer);
-    m_socket->ShutdownRecv();
-    m_socket->SetConnectCallback(MakeCallback(&ATPBulkSendApplication::ConnectionSucceeded, this),
-                                    MakeCallback(&ATPBulkSendApplication::ConnectionFailed, this));
-    m_socket->SetSendCallback(MakeCallback(&ATPBulkSendApplication::DataSend, this));
-    Ptr<TcpSocketBase> tcpSocket = DynamicCast<TcpSocketBase>(m_socket);
-    if (tcpSocket)
-    {
-        tcpSocket->TraceConnectWithoutContext(
-            "Retransmission",
-            MakeCallback(&ATPBulkSendApplication::PacketRetransmitted, this));
-    }
-    
     if (m_connected)
     {
         m_socket->GetSockName(from);
@@ -240,6 +223,8 @@ ATPBulkSendApplication::SendData(const Address& from, const Address& to)
 {
     NS_LOG_FUNCTION(this);
 
+    // 如果m_maxBytes为0，则一直发送数据
+    // 如果m_maxBytes不为0，累积m_totBytes，直到m_totBytes达到m_maxBytes，则停止发送
     while (m_maxBytes == 0 || m_totBytes < m_maxBytes)
     { // Time to send more
 
@@ -252,6 +237,9 @@ ATPBulkSendApplication::SendData(const Address& from, const Address& to)
         {
             toSend = std::min(toSend, m_maxBytes - m_totBytes);
         }
+
+        // 如果m_unsentPacket不为空，则表示上次发送的数据未成功，需要重新发送
+        // 如果m_unsentPacket为空，则表示上次发送的数据成功，需要创建新的数据包
 
         NS_LOG_LOGIC("sending packet at " << Simulator::Now());
 
@@ -271,18 +259,6 @@ ATPBulkSendApplication::SendData(const Address& from, const Address& to)
             packet->AddPacketTag(tag);
              // Trace before adding header, for consistency with PacketSink
             m_txTrace(packet);
-        }
-        else if (m_enableATPHeader)
-        {
-            ATPHeader header;
-            header.SetJobId(m_jobId);
-            header.SetSeq(m_seq++);
-            header.SetSize(toSend);
-            NS_ABORT_IF(toSend < header.GetSerializedSize());
-            packet = Create<Packet>(toSend - header.GetSerializedSize());
-            // Trace before adding header, for consistency with PacketSink
-            m_txTraceWithATPHeader(packet, from, to, header);
-            packet->AddHeader(header);
         }
         else
         {
@@ -367,16 +343,16 @@ ATPBulkSendApplication::DataSend(Ptr<Socket> socket, uint32_t)
     }
 }
 
-void
+/*void
 ATPBulkSendApplication::PacketRetransmitted(Ptr<const Packet> p,
-                                         const TcpHeader& header,
+                                         const ATPHeader& header,
                                          const Address& localAddr,
                                          const Address& peerAddr,
-                                         Ptr<const TcpSocketBase> socket)
+                                         Ptr<const ATPSocket> socket)
 {
     NS_LOG_FUNCTION(this << p << header << localAddr << peerAddr << socket);
     m_retransmissionTrace(p, header, localAddr, peerAddr, socket);
-}
+}*/
 
 
 void

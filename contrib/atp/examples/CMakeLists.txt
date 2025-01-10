@@ -63,3 +63,12 @@ build_lib_example(
                       ${libcsma}
                       ${libbridge}
 )
+
+build_lib_example(
+    NAME atp-socket-test
+    SOURCE_FILES atp-socket-test.cc
+    LIBRARIES_TO_LINK ${libatp}
+                      ${libinternet}
+                      ${libapplications}
+                      ${libpoint-to-point}
+)

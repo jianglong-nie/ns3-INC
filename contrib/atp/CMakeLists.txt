@@ -24,10 +24,15 @@ set(source_files
     model/atp-bridge-net-device.cc
     helper/atp-bridge-helper.cc
 
-    model/atp-socket-base.cc
+    model/atp-l4-protocol.cc
+    model/atp-tx-buffer.cc
+    model/atp-socket.cc
     model/atp-socket-factory.cc
 
     model/atp-congestion-control.cc
+
+    model/atp-packet-sink.cc
+    helper/atp-packet-sink-helper.cc
 )
 
 set(header_files
@@ -44,10 +49,15 @@ set(header_files
     model/atp-bridge-net-device.h
     helper/atp-bridge-helper.h
 
-    model/atp-socket-base.h
+    model/atp-l4-protocol.h
+    model/atp-tx-buffer.h
+    model/atp-socket.h
     model/atp-socket-factory.h
 
     model/atp-congestion-control.h
+
+    model/atp-packet-sink.h
+    helper/atp-packet-sink-helper.h
 )
 
 build_lib(
