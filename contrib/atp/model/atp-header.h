@@ -25,10 +25,10 @@ namespace ns3
  * 3. 序列号 -- m_seqNum -- 1字节
  * 4. 确认号 -- m_ackNum -- 1字节
  * 5. 窗口大小 -- m_windowSize -- 2字节
- * 6. 携带的梯度数据大小 -- m_size -- 4字节
+ * 6. 携带的梯度数据大小 -- m_size -- 2字节
  * 7. 源端口 -- m_sourcePort -- 2字节
  * 8. 目的端口 -- m_destinationPort -- 2字节
- *    总字节数 = 14字节
+ *    总字节数 = 12字节
  * 9. 源地址 -- m_source -- (辅助作用，不计入)
  * 10. 目的地址 -- m_destination -- (辅助作用，不计入)
  * 11. 协议类型 -- m_protocol -- (辅助作用，不计入)
@@ -64,8 +64,8 @@ class ATPHeader : public Header
     uint16_t GetWindowSize() const;
 
     // 携带的梯度数据大小
-    void SetSize(uint32_t size);
-    uint32_t GetSize() const;
+    void SetSize(uint16_t size);
+    uint16_t GetSize() const;
 
     // 设置和获取源端口和目的端口
     void SetSourcePort(uint16_t port);
@@ -98,13 +98,15 @@ class ATPHeader : public Header
     uint8_t m_jobId{0};                 //!< 任务ID
     uint8_t m_seqNum{0};                //!< 序列号
     uint8_t m_ackNum{0};                //!< 确认号
+    uint16_t m_size{0};                 //!< 数据大小
     uint16_t m_windowSize{0xffff};      //!< 接收窗口大小, 默认最大为65535
-    uint32_t m_size{0};                 //!< 数据大小
 
-    Address m_source;                   //!< Source IP address
-    Address m_destination;              //!< Destination IP address
     uint16_t m_sourcePort{0xfffd};      //!< Source port
     uint16_t m_destinationPort{0xfffd}; //!< Destination port
+
+    // 辅助字段
+    Address m_source;                   //!< Source IP address
+    Address m_destination;              //!< Destination IP address
     uint8_t m_protocol{142};
 };
 

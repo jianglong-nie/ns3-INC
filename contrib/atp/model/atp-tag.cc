@@ -7,7 +7,6 @@
  */
 
 #include "atp-tag.h"
-
 #include "ns3/log.h"
 
 namespace ns3
@@ -22,7 +21,7 @@ ATPTag::GetTypeId()
 {
     static TypeId tid = TypeId("ns3::ATPTag")
                            .SetParent<Tag>()
-                           .SetGroupName("ATP")
+                           .SetGroupName("Internet")
                            .AddConstructor<ATPTag>();
     return tid;
 }
@@ -34,35 +33,21 @@ ATPTag::GetInstanceTypeId() const
 }
 
 ATPTag::ATPTag()
-    : m_seq(0),
-      m_jobId(0),
+    : m_jobId(0),
+      m_seqNum(0),
       m_size(0)
 {
     NS_LOG_FUNCTION(this);
 }
 
 void
-ATPTag::SetSeq(uint32_t seq)
-{
-    NS_LOG_FUNCTION(this << seq);
-    m_seq = seq;
-}
-
-uint32_t
-ATPTag::GetSeq() const
-{
-    NS_LOG_FUNCTION(this);
-    return m_seq;
-}
-
-void
-ATPTag::SetJobId(uint32_t jobId)
+ATPTag::SetJobId(uint8_t jobId)
 {
     NS_LOG_FUNCTION(this << jobId);
     m_jobId = jobId;
 }
 
-uint32_t
+uint8_t
 ATPTag::GetJobId() const
 {
     NS_LOG_FUNCTION(this);
@@ -70,13 +55,27 @@ ATPTag::GetJobId() const
 }
 
 void
-ATPTag::SetSize(uint64_t size)
+ATPTag::SetSeqNumber(uint8_t seqNum)
+{
+    NS_LOG_FUNCTION(this << seqNum);
+    m_seqNum = seqNum;
+}
+
+uint8_t
+ATPTag::GetSeqNumber() const
+{
+    NS_LOG_FUNCTION(this);
+    return m_seqNum;
+}
+
+void
+ATPTag::SetSize(uint16_t size)
 {
     NS_LOG_FUNCTION(this << size);
     m_size = size;
 }
 
-uint64_t
+uint16_t
 ATPTag::GetSize() const
 {
     NS_LOG_FUNCTION(this);
@@ -87,32 +86,32 @@ uint32_t
 ATPTag::GetSerializedSize() const
 {
     NS_LOG_FUNCTION(this);
-    return 4 + 4 + 8; // seq(4) + jobId(4) + size(8)
+    return 4; // seqNum(1) + jobId(1) + size(2)
 }
 
 void
 ATPTag::Serialize(TagBuffer buf) const
 {
     NS_LOG_FUNCTION(this << &buf);
-    buf.WriteU32(m_seq);
-    buf.WriteU32(m_jobId);
-    buf.WriteU64(m_size);
+    buf.WriteU8(m_seqNum);
+    buf.WriteU8(m_jobId);
+    buf.WriteU16(m_size);
 }
 
 void
 ATPTag::Deserialize(TagBuffer buf)
 {
     NS_LOG_FUNCTION(this << &buf);
-    m_seq = buf.ReadU32();
-    m_jobId = buf.ReadU32();
-    m_size = buf.ReadU64();
+    m_seqNum = buf.ReadU8();
+    m_jobId = buf.ReadU8();
+    m_size = buf.ReadU16();
 }
 
 void
 ATPTag::Print(std::ostream& os) const
 {
     NS_LOG_FUNCTION(this << &os);
-    os << "(seq=" << m_seq << " jobId=" << m_jobId << " size=" << m_size << ")";
+    os << "(seqNum=" << m_seqNum << " jobId=" << m_jobId << " size=" << m_size << ")";
 }
 
 } // namespace ns3

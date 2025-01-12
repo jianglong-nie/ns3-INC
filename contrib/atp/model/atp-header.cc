@@ -115,13 +115,13 @@ ATPHeader::GetWindowSize() const
 }
 
 void
-ATPHeader::SetSize(uint32_t size)
+ATPHeader::SetSize(uint16_t size)
 {
     NS_LOG_FUNCTION(this << size);
     m_size = size;
 }
 
-uint32_t
+uint16_t
 ATPHeader::GetSize() const
 {
     NS_LOG_FUNCTION(this);

@@ -79,11 +79,7 @@ ATPBulkSendApplication::GetTypeId()
             .AddTraceSource("Tx",
                             "A new packet is sent",
                             MakeTraceSourceAccessor(&ATPBulkSendApplication::m_txTrace),
-                            "ns3::Packet::TracedCallback")
-            .AddTraceSource("TxWithATPHeader",
-                            "A new packet is created with ATPHeader",
-                            MakeTraceSourceAccessor(&ATPBulkSendApplication::m_txTraceWithATPHeader),
-                            "ns3::PacketSink::ATPHeaderCallback");
+                            "ns3::Packet::TracedCallback");
             /*.AddTraceSource("ATPRetransmission",
                             "The ATP socket retransmitted a packet",
                             MakeTraceSourceAccessor(&ATPBulkSendApplication::m_retransmissionTrace),
@@ -253,11 +249,12 @@ ATPBulkSendApplication::SendData(const Address& from, const Address& to)
         {
             ATPTag tag;
             tag.SetJobId(m_jobId);
-            tag.SetSeq(m_seq++);
+            m_seq++; // 序列号自增，初值0，加加后从1开始计数
+            tag.SetSeqNumber(m_seq);
             tag.SetSize(toSend);
             packet = Create<Packet>(toSend);
             packet->AddPacketTag(tag);
-             // Trace before adding header, for consistency with PacketSink
+             // Trace before adding tag, for consistency with PacketSink
             m_txTrace(packet);
         }
         else

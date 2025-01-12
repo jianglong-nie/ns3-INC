@@ -121,30 +121,34 @@ class ATPSocket : public Socket
     Ptr<Node> m_node;                  // 所属节点
     Ptr<ATPL4Protocol> m_atp;          // ATP协议实例
 
-    Address m_defaultAddress;                      //!< 默认目标address
-    uint16_t m_defaultPort;                        //!< 默认目标端口
-    TracedCallback<Ptr<const Packet>> m_dropTrace; //!< 丢包跟踪
-    
+    // socket connect属性
     mutable SocketErrno m_errno; //!< Socket错误码
     bool m_shutdownSend;         //!< 发送不再允许
     bool m_shutdownRecv;         //!< 接收不再允许
     bool m_connected;            //!< 连接已建立
 
-    bool m_allowBroadcast{false};
-    Ptr<ATPTxBuffer> m_txBuffer;       // 发送缓冲区
-    std::queue<std::pair<Ptr<Packet>, Address>> m_deliveryQueue; // 接收队列
-    uint32_t m_rcvBufSize;             // 接收缓冲区大小
-    uint32_t m_rxAvailable;            // 可接收数据量
+    // 地址
+    Address m_defaultAddress;                      //!< 默认目标address
+    uint16_t m_defaultPort;                        //!< 默认目标端口
+    TracedCallback<Ptr<const Packet>> m_dropTrace; //!< 丢包跟踪
     
+    // 接收发送缓冲区
+    bool m_allowBroadcast{false};                   // 是否允许广播
+    uint32_t m_rxBufferSize;                        // 接收缓冲区大小
+    uint32_t m_txBufferSize;                        // 发送缓冲区大小
+    uint32_t m_rxAvailable;                         // 可接收数据量
+    Ptr<ATPTxBuffer> m_txBuffer;                    // 发送缓冲区
+    std::queue<std::pair<Ptr<Packet>, Address>> m_rxBuffer; // 接收队列
     
-    // socket属性
+    // 拥塞控制
     Ptr<ATPCC> m_congestionControl;    // 拥塞控制算法
     uint32_t m_nextSeqNo;              // 下一个序列号
     uint32_t m_highestRxSeqNo;         // 最高接收序列号
     uint32_t m_cwnd;                   // 拥塞窗口
     uint32_t m_ssthresh;               // 慢启动阈值
     uint32_t m_mss;                    // 最大报文段大小
-    
+
+    // 重传
     Time m_rto;                        // 重传超时时间
     uint32_t m_maxRetries;             // 最大重传次数
     Timer m_retransmitTimer;           // 重传定时器

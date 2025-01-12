@@ -61,6 +61,9 @@ int main(int argc, char *argv[])
     ATPBulkSendHelper source("ns3::ATPSocketFactory",
         InetSocketAddress(interfaces.GetAddress(1), sinkPort));
     source.SetAttribute("MaxBytes", UintegerValue(maxBytes));
+    source.SetAttribute("EnableATPTag", BooleanValue(true));
+    source.SetAttribute("JobId", UintegerValue(1));
+
     ApplicationContainer sourceApps = source.Install(nodes.Get(0));
     sourceApps.Start(Seconds(1.0));
     sourceApps.Stop(Seconds(10.0));

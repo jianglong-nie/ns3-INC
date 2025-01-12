@@ -49,29 +49,38 @@ ATPSocket::GetTypeId()
     return tid;
 }
 
+// 考虑将这么些变量放入函数内部赋值
 ATPSocket::ATPSocket()
-    : m_endPoint(nullptr),
-      m_node(nullptr),
-      m_atp(nullptr),
-      m_errno(ERROR_NOTERROR),
-      m_shutdownSend(false),
-      m_shutdownRecv(false),
-      m_connected(false),
-      m_rcvBufSize(32768),
-      m_rxAvailable(0),
-      m_txBuffer(CreateObject<ATPTxBuffer>()),
-      m_congestionControl(nullptr),
-      m_nextSeqNo(0),
-      m_highestRxSeqNo(0),
-      m_cwnd(1),
-      m_ssthresh(65535),
-      m_mss(536),
-      m_maxRetries(5)
+    : Socket()
 {
     NS_LOG_FUNCTION(this);
+    m_endPoint = nullptr;
+    m_node = nullptr;
+    m_atp = nullptr;
+
+    m_errno = ERROR_NOTERROR;
+    m_shutdownSend = false;
+    m_shutdownRecv = false;
+    m_connected = false;
+    
+    m_allowBroadcast = false;
+    m_txBufferSize = 32768;
+    m_rxBufferSize = 32768;
+    m_rxAvailable = 0;
+    m_txBuffer = CreateObject<ATPTxBuffer>();
+
+    // 拥塞控制
+    m_congestionControl = nullptr;
+    m_nextSeqNo = 0;
+    m_highestRxSeqNo = 0;
+    m_cwnd = 1;
+    m_ssthresh = 65535;
+    m_mss = 536;
+
+    // 重传
+    m_maxRetries = 5;
 }
 
-// 需要修改，还没有写DeAllocate
 ATPSocket::~ATPSocket()
 {
     NS_LOG_FUNCTION(this);
@@ -117,14 +126,14 @@ void
 ATPSocket::SetRxBufferSize(uint32_t size)
 {
     NS_LOG_FUNCTION(this << size);
-    m_rcvBufSize = size;
+    m_rxBufferSize = size;
 }
 
 uint32_t
 ATPSocket::GetRxBufferSize() const
 {
     NS_LOG_FUNCTION(this);
-    return m_rcvBufSize;
+    return m_rxBufferSize;
 }
 
 uint32_t
@@ -546,17 +555,17 @@ ATPSocket::RecvFrom(uint32_t maxSize, uint32_t flags, Address& fromAddress)
 {
     NS_LOG_FUNCTION(this << maxSize << flags << fromAddress);
     
-    if (m_deliveryQueue.empty())
+    if (m_rxBuffer.empty())
     {
         m_errno = ERROR_AGAIN;
         return nullptr;
     }
-    Ptr<Packet> p = m_deliveryQueue.front().first;
-    fromAddress = m_deliveryQueue.front().second;
+    Ptr<Packet> p = m_rxBuffer.front().first;
+    fromAddress = m_rxBuffer.front().second;
 
     if (p->GetSize() <= maxSize)
     {
-        m_deliveryQueue.pop();
+        m_rxBuffer.pop();
         m_rxAvailable -= p->GetSize();
     }
     else
@@ -581,10 +590,10 @@ ATPSocket::ForwardUp(Ptr<Packet> packet,
     }
 
     // 2. 如果接收缓冲区有足够的空间，将数据包放入接收队列
-    if ((m_rxAvailable + packet->GetSize()) <= m_rcvBufSize)
+    if ((m_rxAvailable + packet->GetSize()) <= m_rxBufferSize)
     {
         Address address = InetSocketAddress(header.GetSource(), port);
-        m_deliveryQueue.emplace(packet, address);
+        m_rxBuffer.emplace(packet, address);
         m_rxAvailable += packet->GetSize();
         // 通知应用层有数据可读
         NotifyDataRecv();

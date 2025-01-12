@@ -11,13 +11,14 @@
 namespace ns3
 {
 
+class ATPTag;
 class Node;
 class Socket;
+class ATPSocket;
 class Ipv4EndPoint;
 class Ipv4EndPointDemux;
 class Ipv6EndPoint;
 class Ipv6EndPointDemux;
-class ATPSocket;
 class NetDevice;
 
 /**

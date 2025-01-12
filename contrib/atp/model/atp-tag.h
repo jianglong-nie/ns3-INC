@@ -26,10 +26,16 @@ class ATPTag : public Tag
     static TypeId GetTypeId();
     TypeId GetInstanceTypeId() const override;
 
-    /**
-     * Create an empty ATP tag
-     */
     ATPTag();
+
+    void SetJobId(uint8_t jobId);
+    uint8_t GetJobId() const;
+
+    void SetSeqNumber(uint8_t seqNum);
+    uint8_t GetSeqNumber() const;
+
+    void SetSize(uint16_t size);
+    uint16_t GetSize() const;
 
     // Inherited from Tag
     uint32_t GetSerializedSize() const override;
@@ -37,37 +43,10 @@ class ATPTag : public Tag
     void Deserialize(TagBuffer buf) override;
     void Print(std::ostream& os) const override;
 
-    /**
-     * \param seq the sequence number
-     */
-    void SetSeq(uint32_t seq);
-    /**
-     * \return the sequence number
-     */
-    uint32_t GetSeq() const;
-
-    /**
-     * \param jobId the job ID
-     */
-    void SetJobId(uint32_t jobId);
-    /**
-     * \return the job ID
-     */
-    uint32_t GetJobId() const;
-
-    /**
-     * \param size the size information
-     */
-    void SetSize(uint64_t size);
-    /**
-     * \return the size information
-     */
-    uint64_t GetSize() const;
-
   private:
-    uint32_t m_seq;   //!< Sequence number
-    uint32_t m_jobId; //!< Job ID
-    uint64_t m_size;  //!< Size information
+    uint8_t m_jobId{0};    //!< Job ID
+    uint8_t m_seqNum{0};   //!< Sequence number
+    uint16_t m_size{0};    //!< Size of data to send each time
 };
 
 } // namespace ns3

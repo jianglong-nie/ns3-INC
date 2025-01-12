@@ -1,3 +1,4 @@
+#include "atp-tag.h"
 #include "atp-header.h"
 #include "atp-l4-protocol.h"
 #include "atp-socket.h"
@@ -244,15 +245,32 @@ ATPL4Protocol::Send(Ptr<Packet> packet,
 {
     NS_LOG_FUNCTION(this << packet << saddr << daddr << sport << dport);
 
-    ATPHeader atpHeader;
-    atpHeader.SetDestinationPort(dport);
-    atpHeader.SetSourcePort(sport);
-    // ATP特有的头部字段设置可以在这里添加
-    // 例如：序列号、确认号等
+    // 1. 提取packet中的atptag
+    ATPTag atpTag;
+    if (packet->PeekPacketTag(atpTag))
+    {
+        // 2. 创建并设置ATP头部
+        ATPHeader atpHeader;
+        atpHeader.SetFlags(0);
+        atpHeader.SetJobId(atpTag.GetJobId());
+        atpHeader.SetSeqNumber(atpTag.GetSeqNumber());
+        atpHeader.SetSize(atpTag.GetSize());
 
-    packet->AddHeader(atpHeader);
+        atpHeader.SetDestinationPort(dport);
+        atpHeader.SetSourcePort(sport);
 
-    m_downTarget(packet, saddr, daddr, PROT_NUMBER, nullptr);
+        // 3. 添加ATP头部到数据包
+        packet->AddHeader(atpHeader);
+
+        // 4. 发送数据包
+        m_downTarget(packet, saddr, daddr, PROT_NUMBER, nullptr);
+    }
+    else
+    {
+        m_downTarget(packet, saddr, daddr, PROT_NUMBER, nullptr);
+    }
+
+    
 }
 
 void
@@ -265,18 +283,31 @@ ATPL4Protocol::Send(Ptr<Packet> packet,
 {
     NS_LOG_FUNCTION(this << packet << saddr << daddr << sport << dport << route);
 
-    // 1. 创建并设置ATP头部
-    ATPHeader atpHeader;
-    atpHeader.SetDestinationPort(dport);
-    atpHeader.SetSourcePort(sport);
-    // 设置ATP特有的头部字段(序列号等)
     
-    // 2. 添加校验和（考虑怎么去写）
+    // 1. 提取packet中的atptag
+    ATPTag atpTag;
+    if (packet->PeekPacketTag(atpTag))
+    {
+        // 2. 创建并设置ATP头部
+        ATPHeader atpHeader;
+        atpHeader.SetFlags(0);
+        atpHeader.SetJobId(atpTag.GetJobId());
+        atpHeader.SetSeqNumber(atpTag.GetSeqNumber());
+        atpHeader.SetSize(atpTag.GetSize());
 
-    // 3. 添加头部到数据包
-    packet->AddHeader(atpHeader);
+        atpHeader.SetDestinationPort(dport);
+        atpHeader.SetSourcePort(sport);
+        
+        // 3. 添加头部到数据包
+        packet->AddHeader(atpHeader);
 
-    m_downTarget(packet, saddr, daddr, PROT_NUMBER, route);
+        // 4. 发送数据包
+        m_downTarget(packet, saddr, daddr, PROT_NUMBER, route);
+    }
+    else
+    {
+        m_downTarget(packet, saddr, daddr, PROT_NUMBER, route);
+    }
 }
 
 void
