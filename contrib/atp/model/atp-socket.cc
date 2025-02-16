@@ -21,13 +21,6 @@ NS_LOG_COMPONENT_DEFINE("ATPSocket");
 
 NS_OBJECT_ENSURE_REGISTERED(ATPSocket);
 
-// The correct maximum UDP message size is 65507, as determined by the following formula:
-// 0xffff - (sizeof(IP Header) + sizeof(UDP Header)) = 65535-(20+8) = 65507
-
-// 测一下ATP Header的大小，再重新计算头部大小
-// \todo MAX_IPV4_ATP_DATAGRAM_SIZE is correct only for IPv4
-static const uint32_t MAX_IPV4_ATP_DATAGRAM_SIZE = 65507; //!< Maximum UDP datagram size
-
 TypeId
 ATPSocket::GetTypeId()
 {
@@ -63,22 +56,22 @@ ATPSocket::ATPSocket()
     m_shutdownRecv = false;
     m_connected = false;
     
-    m_allowBroadcast = false;
-    m_txBufferSize = 32768;
-    m_rxBufferSize = 32768;
-    m_rxAvailable = 0;
-    m_txBuffer = CreateObject<ATPTxBuffer>();
-
-    // 拥塞控制
-    m_congestionControl = nullptr;
-    m_nextSeqNo = 0;
-    m_highestRxSeqNo = 0;
-    m_cwnd = 1;
-    m_ssthresh = 65535;
-    m_mss = 536;
-
+    // 初始拥塞控制窗口
+    m_cwnd = 2;
     // 重传
-    m_maxRetries = 5;
+    m_rto = MilliSeconds(200);
+
+    m_allowBroadcast = false;
+    m_txBufferSize = 596; // 默认32KB，568 = 2 packet, 用来测试数据。
+    m_rxBufferSize = 596; // 这个暂时不知道啥用
+    m_txAvailable = m_txBufferSize;
+    m_rxAvailable = 0;
+
+    m_txBuffer = CreateObject<ATPTxBuffer>();
+    m_txBuffer->SetMaxBufferSize(m_txBufferSize); // 设置发送缓冲区最大容量
+    m_txBuffer->SetCwnd(m_cwnd);
+    // m_rxBuffer已经定义了
+
 }
 
 ATPSocket::~ATPSocket()
@@ -147,7 +140,7 @@ uint32_t
 ATPSocket::GetTxAvailable() const
 {
     NS_LOG_FUNCTION(this);
-    return MAX_IPV4_ATP_DATAGRAM_SIZE;
+    return m_txAvailable;
 }
 
 Socket::SocketErrno
@@ -215,24 +208,37 @@ ATPSocket::GetAllowBroadcast() const
 }
 
 void
+ATPSocket::CancelAllTimers()
+{
+    NS_LOG_FUNCTION(this);
+    m_sendWindowDataEvent.Cancel();
+    m_retxEvent.Cancel();
+}
+
+void
 ATPSocket::Destroy()
 {
     NS_LOG_FUNCTION(this);
-    if (m_atp)
+    m_endPoint = nullptr;
+    if (m_atp != nullptr)
     {
+        CancelAllTimers();
         m_atp->RemoveSocket(this);
     }
-    m_endPoint = nullptr;
+    CancelAllTimers();
 }
 
 void
 ATPSocket::DeallocateEndPoint()
 {
     NS_LOG_FUNCTION(this);
-    if (m_endPoint)
+    if (m_endPoint != nullptr)
     {
+        CancelAllTimers();
+        m_endPoint->SetDestroyCallback(MakeNullCallback<void>());
         m_atp->DeAllocate(m_endPoint);
         m_endPoint = nullptr;
+        m_atp->RemoveSocket(this);
     }
 }
 
@@ -398,45 +404,193 @@ ATPSocket::Listen()
     return -1;
 }
 
+Ptr<Packet>
+ATPSocket::Recv(uint32_t maxSize, uint32_t flags)
+{
+    NS_LOG_FUNCTION(this << maxSize << flags);
+
+    Address fromAddress;
+    Ptr<Packet> packet = RecvFrom(maxSize, flags, fromAddress);
+    return packet;
+}
+
+Ptr<Packet>
+ATPSocket::RecvFrom(uint32_t maxSize, uint32_t flags, Address& fromAddress)
+{
+    //NS_LOG_FUNCTION(this << maxSize << flags << fromAddress);
+    NS_LOG_INFO("ATPRecvFromTEST");
+    if (m_rxBuffer.empty())
+    {
+        m_errno = ERROR_AGAIN;
+        return nullptr;
+    }
+    Ptr<Packet> p = m_rxBuffer.front().first;
+    fromAddress = m_rxBuffer.front().second;
+
+    if (p->GetSize() <= maxSize)
+    {
+        m_rxBuffer.pop();
+        m_rxAvailable -= p->GetSize();
+    }
+    else
+    {
+        p = nullptr;
+    }
+    return p;
+}
+
+void
+ATPSocket::StartRetransmitTimer()
+{
+    NS_LOG_FUNCTION(this);
+    if (m_retxEvent.IsExpired())
+    {
+        m_retxEvent = Simulator::Schedule(m_rto, &ATPSocket::RetransmitExpired, this);
+        NS_LOG_INFO("Start retransmit timer at " << Simulator::Now().GetSeconds() 
+                    << "s, will expire at " 
+                    << (Simulator::Now() + m_rto).GetSeconds() << "s");
+    }
+}
+
+void
+ATPSocket::RetransmitExpired()
+{
+    NS_LOG_FUNCTION(this);
+    NS_LOG_INFO("Retransmit timer expired at " << Simulator::Now().GetSeconds() << "s");
+
+    m_cwnd = m_cwnd / 2;
+    NS_LOG_INFO("Retransmit timer expired, update congestion window to " << m_cwnd);
+
+    // 重新发送数据
+    SendWindowData();
+}
+
 int
 ATPSocket::Send(Ptr<Packet> p, uint32_t flags)
 {
-    NS_LOG_FUNCTION(this << p << flags);
+    NS_LOG_FUNCTION(this << p);
 
-    if (!m_connected)
+    if (m_connected)
+    {
+        // 绑定和连接
+        if (m_boundnetdevice)
+        {
+            NS_LOG_LOGIC("Bound interface number " << m_boundnetdevice->GetIfIndex());
+        }
+        if (m_endPoint == nullptr && Ipv4Address::IsMatchingType(m_defaultAddress))
+        {
+            if (Bind() == -1)
+            {
+                NS_ASSERT(m_endPoint == nullptr);
+                return -1;
+            }
+            NS_ASSERT(m_endPoint != nullptr);
+        }
+        if (m_shutdownSend)
+        {
+            m_errno = ERROR_SHUTDOWN;
+            return -1;
+        }
+
+        // 将数据包填入发送缓冲区
+        if (!m_txBuffer->AddPacket(p))
+        {
+            m_errno = ERROR_MSGSIZE;
+            return -1;
+        }
+        
+        if (!m_sendWindowDataEvent.IsPending()) {
+            m_sendWindowDataEvent = Simulator::Schedule(TimeStep(1),
+                                                        &ATPSocket::SendWindowData,
+                                                        this);
+        }
+
+        return p->GetSize();
+    }
+    else 
     {
         m_errno = ERROR_NOTCONN;
         return -1;
     }
+}
 
-    return DoSend(p);
+// 根据拥塞窗口，发送缓冲区中的数据
+void
+ATPSocket::SendWindowData()
+{
+    NS_LOG_FUNCTION(this);
+    // 获取窗口信息
+    uint32_t availableWindow = m_txBuffer->GetCwnd();
+    
+    // 发送窗口内的数据
+    for (uint32_t i = 0; i < availableWindow; i++)
+    {
+        Ptr<Packet> packet = m_txBuffer->SendPacket();
+        if (packet == nullptr) {
+            break;
+        }
+        // 发送数据包
+        DoSend(packet);
+    }
+    
+
+    /*
+    // 检查已发送缓冲区(m_sentQueue)是否为空，也就是窗口
+    // 如果不为空，说明有数据包的ACK未收到，需要重传
+    // 只有当已发送缓冲区为空时，才发送新数据
+    if (m_txBuffer->IsSentBufferEmpty())
+    {
+        while (sentPacketNum < availableWindow)
+        {
+
+            // 还得考虑到发送缓冲区的数据短于拥塞窗口的情况
+            // 那就得通知上层塞数据了
+            Ptr<Packet> packet = m_txBuffer->NextPacket();
+            if (packet == nullptr)
+            {
+                NS_LOG_INFO("No packet to send");
+                break;
+            }
+            else
+            {
+                // 启动重传定时器
+                StartRetransmitTimer();
+                DoSend(packet);
+                sentPacketNum++;
+            }
+        }
+
+        return sentPacketNum;
+    }
+    else
+    {
+        // 重传
+        NS_LOG_INFO("sent buffer is not empty, there are packets waiting to retransmit");
+
+        
+        // 发送m_txBuffer中sent的包
+        while (!m_txBuffer->IsSentBufferEmpty())
+        {
+            Ptr<Packet> packet = m_txBuffer->NextRetransmitPacket();
+            DoSend(packet);
+            sentPacketNum++;
+        }
+
+        return sentPacketNum;
+    }
+    */
 }
 
 int
 ATPSocket::DoSend(Ptr<Packet> p)
 {
     NS_LOG_FUNCTION(this << p);
-    if (m_endPoint == nullptr && Ipv4Address::IsMatchingType(m_defaultAddress))
-    {
-        if (Bind() == -1)
-        {
-            NS_ASSERT(m_endPoint == nullptr);
-            return -1;
-        }
-        NS_ASSERT(m_endPoint != nullptr);
-    }
-    if (m_shutdownSend)
-    {
-        m_errno = ERROR_SHUTDOWN;
-        return -1;
-    }
 
     if (Ipv4Address::IsMatchingType(m_defaultAddress))
     {
         return DoSendTo(p, Ipv4Address::ConvertFrom(m_defaultAddress), m_defaultPort);
     }
 
-    m_errno = ERROR_AFNOSUPPORT;
     return -1;
 }
 
@@ -445,44 +599,17 @@ ATPSocket::DoSendTo(Ptr<Packet> p, Ipv4Address dest, uint16_t port)
 {
     NS_LOG_FUNCTION(this << p << dest << port);
 
-    // 1. 检查是否绑定了端口
-    if (m_endPoint == nullptr)
-    {
-        if (Bind() == -1)
-        {
-            return -1;
-        }
-    }
-
-    // 2. 检查是否关闭发送
-    if (m_shutdownSend)
-    {
-        m_errno = ERROR_SHUTDOWN;
-        return -1;
-    }
-
     Ptr<Ipv4> ipv4 = m_node->GetObject<Ipv4>();
 
     if (m_endPoint->GetLocalAddress() != Ipv4Address::GetAny())
     {
-
-        if (!m_txBuffer->Add(p))
-        {
-            m_errno = ERROR_MSGSIZE;
-            return -1;
-        }
-
-        Ptr<Packet> packet = m_txBuffer->NextPacket();
         NS_LOG_INFO("Send packet to " << dest << ":" << port);
         // 5. 发送数据包
-        m_atp->Send(packet->Copy(),
+        m_atp->Send(p->Copy(),
                     m_endPoint->GetLocalAddress(),
                     dest,
                     m_endPoint->GetLocalPort(),
                     port);
-
-        // 6. 通知发送完成
-        NotifyDataSent(p->GetSize());
         return p->GetSize();
     }
     else if (ipv4->GetRoutingProtocol())
@@ -506,7 +633,6 @@ ATPSocket::DoSendTo(Ptr<Packet> p, Ipv4Address dest, uint16_t port)
                         m_endPoint->GetLocalPort(),
                         port,
                         route);
-            NotifyDataSent(p->GetSize());
             return p->GetSize();
         }
         else
@@ -540,39 +666,65 @@ ATPSocket::SendTo(Ptr<Packet> p, uint32_t flags, const Address& address)
     }
 }
 
-Ptr<Packet>
-ATPSocket::Recv(uint32_t maxSize, uint32_t flags)
+void
+ATPSocket::ReceiveAck(ATPHeader atpHeader)
 {
-    NS_LOG_FUNCTION(this << maxSize << flags);
+    NS_LOG_FUNCTION(this << atpHeader);
+    // 打印接收ack的时间
+    NS_LOG_INFO("Receive ack at time" << Simulator::Now().GetSeconds() << "s");
+    NS_LOG_INFO("Process ack number " << atpHeader.GetAckNumber());
 
-    Address fromAddress;
-    Ptr<Packet> packet = RecvFrom(maxSize, flags, fromAddress);
-    return packet;
+    // 1. 更新已发送缓冲区
+    m_txBuffer->ProcessAck(atpHeader.GetAckNumber());
+    
+    // 2.取消当前的重传定时器
+    if (!m_retxEvent.IsExpired())
+    {
+        // 调整rto，rto是什么？
+        m_retxEvent.Cancel();
+        m_rto = Max(MilliSeconds(200), m_rto - MilliSeconds(10));
+    }
+    /*else
+    {
+        // 如果是重传后收到的ACK，增加RTO
+        m_rto = Min(Seconds(1), m_rto * 2);
+        NS_LOG_INFO("Adjusted RTO to " << m_rto.GetMilliSeconds() << "ms");
+    }*/
+
+    // 通知上层继续发送数据到缓冲区
+    NS_LOG_INFO("Notify ATPBulkSendApplication to send data");
+    NotifySend(0);
 }
 
-Ptr<Packet>
-ATPSocket::RecvFrom(uint32_t maxSize, uint32_t flags, Address& fromAddress)
+void
+ATPSocket::SendAck(ATPHeader atpHeader, Ipv4Header ipHeader)
 {
-    NS_LOG_FUNCTION(this << maxSize << flags << fromAddress);
-    
-    if (m_rxBuffer.empty())
-    {
-        m_errno = ERROR_AGAIN;
-        return nullptr;
-    }
-    Ptr<Packet> p = m_rxBuffer.front().first;
-    fromAddress = m_rxBuffer.front().second;
+    NS_LOG_FUNCTION(this << atpHeader << ipHeader);
 
-    if (p->GetSize() <= maxSize)
-    {
-        m_rxBuffer.pop();
-        m_rxAvailable -= p->GetSize();
-    }
-    else
-    {
-        p = nullptr;
-    }
-    return p;
+    // 返回一个ack数据包给发送端
+    ATPHeader ackHeader;
+    ackHeader.SetFlags(ATPHeader::ACK);
+    ackHeader.SetJobId(atpHeader.GetJobId());
+    ackHeader.SetAckNumber(atpHeader.GetSeqNumber());
+
+    // ack包的源地址和目的地址与发送的包相反
+    Ipv4Address ackSource = ipHeader.GetDestination();
+    Ipv4Address ackDestination = ipHeader.GetSource();
+    uint16_t ackSourcePort = atpHeader.GetDestinationPort();
+    uint16_t ackDestinationPort = atpHeader.GetSourcePort();
+
+    ackHeader.SetSourcePort(ackSourcePort);
+    ackHeader.SetDestinationPort(ackDestinationPort);
+
+    Ptr<Packet> ackPacket = Create<Packet>();
+    ackPacket->AddHeader(ackHeader);
+
+    NS_LOG_INFO("Send ack packet from " << ackSource << ":" << ackSourcePort
+                << " to " << ackDestination << ":" << ackDestinationPort 
+                << " at time " << Simulator::Now().GetSeconds() << "s");
+    // 发送ack包, 源地址和目的地址与发送的包相反
+    m_atp->Send(ackPacket, ackSource, ackDestination,
+                ackSourcePort, ackDestinationPort);
 }
 
 void
@@ -583,25 +735,42 @@ ATPSocket::ForwardUp(Ptr<Packet> packet,
 {
     NS_LOG_FUNCTION(this << packet << header << port << incomingInterface);
 
-    // 1. 如果接收已关闭，丢弃数据包
+    // 如果接收已关闭，丢弃数据包
     if (m_shutdownRecv)
     {
         return;
     }
 
-    // 2. 如果接收缓冲区有足够的空间，将数据包放入接收队列
-    if ((m_rxAvailable + packet->GetSize()) <= m_rxBufferSize)
+    // 判断是否是ack数据包，可能ackNumber不对，应该选别的。
+    ATPHeader atpHeader;
+    packet->PeekHeader(atpHeader);
+    if (atpHeader.GetFlags() & ATPHeader::ACK)
     {
-        Address address = InetSocketAddress(header.GetSource(), port);
-        m_rxBuffer.emplace(packet, address);
-        m_rxAvailable += packet->GetSize();
-        // 通知应用层有数据可读
-        NotifyDataRecv();
+        // 处理ack包
+        ReceiveAck(atpHeader);
     }
     else
     {
-        NS_LOG_WARN("No receive buffer space available.  Drop.");
-        m_dropTrace(packet);
+        // 如果接收缓冲区有足够的空间，将数据包放入接收队列
+        if ((m_rxAvailable + packet->GetSize()) <= m_rxBufferSize)
+        {
+            Address address = InetSocketAddress(header.GetSource(), port);
+
+            packet->RemoveHeader(atpHeader);
+            m_rxBuffer.emplace(packet, address);
+            m_rxAvailable += packet->GetSize();
+            // 通知应用层有数据可读
+            NS_LOG_INFO("NotifyDataRecv");
+            NotifyDataRecv();
+
+            // 发送ack包
+            SendAck(atpHeader, header);
+        }
+        else
+        {
+            NS_LOG_WARN("No receive buffer space available.  Drop.");
+            m_dropTrace(packet);
+        }
     }
 }
 

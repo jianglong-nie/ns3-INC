@@ -156,6 +156,34 @@ ATPHeader::GetDestinationPort() const
     return m_destinationPort;
 }
 
+void
+ATPHeader::SetSourceAddress(const Address& source)
+{
+    NS_LOG_FUNCTION(this << source);
+    m_source = source;
+}
+
+Address
+ATPHeader::GetSourceAddress() const
+{
+    NS_LOG_FUNCTION(this);
+    return m_source;
+}
+
+void
+ATPHeader::SetDestinationAddress(const Address& destination)
+{
+    NS_LOG_FUNCTION(this << destination);
+    m_destination = destination;
+}
+
+Address
+ATPHeader::GetDestinationAddress() const
+{
+    NS_LOG_FUNCTION(this);
+    return m_destination;
+}
+
 uint32_t
 ATPHeader::GetSerializedSize() const
 {

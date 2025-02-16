@@ -214,7 +214,7 @@ ATPL4Protocol::Receive(Ptr<Packet> packet, const Ipv4Header& header, Ptr<Ipv4Int
     }
 
     // 移除ATP头部
-    packet->RemoveHeader(atpHeader);
+    //packet->RemoveHeader(atpHeader);
     
     // 将数据包转发给所有匹配的端点
     NS_ASSERT_MSG(endPoints.size() == 1, "ATP expects exactly one endpoint");
@@ -256,8 +256,10 @@ ATPL4Protocol::Send(Ptr<Packet> packet,
         atpHeader.SetSeqNumber(atpTag.GetSeqNumber());
         atpHeader.SetSize(atpTag.GetSize());
 
-        atpHeader.SetDestinationPort(dport);
+        atpHeader.SetSourceAddress(saddr);
+        atpHeader.SetDestinationAddress(daddr);
         atpHeader.SetSourcePort(sport);
+        atpHeader.SetDestinationPort(dport);
 
         // 3. 添加ATP头部到数据包
         packet->AddHeader(atpHeader);
@@ -295,6 +297,8 @@ ATPL4Protocol::Send(Ptr<Packet> packet,
         atpHeader.SetSeqNumber(atpTag.GetSeqNumber());
         atpHeader.SetSize(atpTag.GetSize());
 
+        atpHeader.SetDestinationAddress(daddr);
+        atpHeader.SetSourceAddress(saddr);
         atpHeader.SetDestinationPort(dport);
         atpHeader.SetSourcePort(sport);
         

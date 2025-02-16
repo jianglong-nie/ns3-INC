@@ -22,9 +22,10 @@ int main(int argc, char *argv[])
     //LogComponentEnable("ATPSocketTest", LOG_LEVEL_ALL);
     //LogComponentEnable("ATPSocketFactory", LOG_LEVEL_ALL); // ATP socket factory的日志
     LogComponentEnable("ATPSocket", LOG_LEVEL_ALL);       // ATP socket的日志
-    //LogComponentEnable("ATPL4Protocol", LOG_LEVEL_ALL);   // ATP协议的日志
+    LogComponentEnable("ATPL4Protocol", LOG_LEVEL_ALL);   // ATP协议的日志
     LogComponentEnable("ATPBulkSendApplication", LOG_LEVEL_ALL); // ATPBulkSendApplication的日志
     LogComponentEnable("ATPPacketSink", LOG_LEVEL_ALL);      // ATPPacketSink的日志
+    LogComponentEnable("Ipv4", LOG_LEVEL_ALL);           // IPv4协议栈的日志
     //LogComponentEnable("ATPTxBuffer", LOG_LEVEL_ALL);     // ATPTxBuffer的日志
 
     // 创建两个节点
@@ -57,7 +58,7 @@ int main(int argc, char *argv[])
     sinkApps.Stop(Seconds(20.0));
 
     // 在发送端创建ATPBulkSend应用
-    uint32_t maxBytes = 100;
+    uint32_t maxBytes = 2680;
     ATPBulkSendHelper source("ns3::ATPSocketFactory",
         InetSocketAddress(interfaces.GetAddress(1), sinkPort));
     source.SetAttribute("MaxBytes", UintegerValue(maxBytes));

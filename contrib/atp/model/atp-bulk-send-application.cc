@@ -191,7 +191,7 @@ ATPBulkSendApplication::StartApplication() // Called at time specified by Start
     }
     if (m_connected)
     {
-        m_socket->GetSockName(from);
+        //m_socket->GetSockName(from);
         SendData(from, m_peer);
     }
 }
@@ -298,11 +298,12 @@ ATPBulkSendApplication::SendData(const Address& from, const Address& to)
         }
     }
     // Check if time to close (all sent)
-    if (m_totBytes == m_maxBytes && m_connected)
+    
+    /*if (m_totBytes == m_maxBytes && m_connected)
     {
         m_socket->Close();
         m_connected = false;
-    }
+    }*/
 }
 
 void
@@ -315,7 +316,7 @@ ATPBulkSendApplication::ConnectionSucceeded(Ptr<Socket> socket)
     Address to;
     socket->GetSockName(from);
     socket->GetPeerName(to);
-    SendData(from, to);
+    //SendData(from, to);
 }
 
 void

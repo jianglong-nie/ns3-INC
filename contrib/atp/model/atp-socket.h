@@ -1,8 +1,9 @@
 #ifndef ATP_SOCKET_H
 #define ATP_SOCKET_H
 
+#include "atp-tag.h"
+#include "atp-header.h"
 #include "atp-tx-buffer.h"
-#include "atp-rx-buffer.h"
 #include "atp-congestion-control.h"
 
 #include "ns3/socket.h"
@@ -25,6 +26,9 @@ namespace ns3 {
 
 class Node;
 class Packet;
+class ATPTag;
+class ATPHeader;
+class ATPRxBuffer;
 class ATPL4Protocol;
 class Ipv4EndPoint;
 
@@ -68,6 +72,7 @@ class ATPSocket : public Socket
     int Send(Ptr<Packet> p, uint32_t flags) override;
     int SendTo(Ptr<Packet> p, uint32_t flags, const Address& address) override;
     
+    
     // 给应用层设置的回调函数，用于应用层接收数据
     Ptr<Packet> Recv(uint32_t maxSize, uint32_t flags) override;
     Ptr<Packet> RecvFrom(uint32_t maxSize, uint32_t flags, Address& fromAddress) override;
@@ -87,8 +92,10 @@ class ATPSocket : public Socket
 
     void Destroy();
     void DeallocateEndPoint();
+    void CancelAllTimers();
 
   protected:
+    void SendWindowData();
     int DoSend(Ptr<Packet> p);
     int DoSendTo(Ptr<Packet> p, Ipv4Address dest, uint16_t port);
     /* 
@@ -102,6 +109,10 @@ class ATPSocket : public Socket
              拆除IP头     通知应用层
     */
     void ForwardUp(Ptr<Packet> p, Ipv4Header header, uint16_t sport, Ptr<Ipv4Interface> incomingInterface);
+
+    // 处理ack包
+    void ReceiveAck(ATPHeader atpHeader);
+    void SendAck(ATPHeader atpHeader, Ipv4Header ipHeader);
 
     // 重传相关
     void SetRetransmitTimeout(Time rto);  // 设置重传超时时间
@@ -132,13 +143,17 @@ class ATPSocket : public Socket
     uint16_t m_defaultPort;                        //!< 默认目标端口
     TracedCallback<Ptr<const Packet>> m_dropTrace; //!< 丢包跟踪
     
+    EventId m_sendWindowDataEvent{};               //!< micro-delay event to send pending data
+    EventId m_retxEvent{};                          //!< Retransmission event
+
     // 接收发送缓冲区
     bool m_allowBroadcast{false};                   // 是否允许广播
     uint32_t m_rxBufferSize;                        // 接收缓冲区大小
     uint32_t m_txBufferSize;                        // 发送缓冲区大小
-    uint32_t m_rxAvailable;                         // 可接收数据量
-    Ptr<ATPTxBuffer> m_txBuffer;                    // 发送缓冲区
-    std::queue<std::pair<Ptr<Packet>, Address>> m_rxBuffer; // 接收队列
+    uint32_t m_rxAvailable;                         // 接收缓冲区可接收数据量
+    uint32_t m_txAvailable;                         // 发送缓冲区可发送数据量
+    Ptr<ATPTxBuffer> m_txBuffer;                    // 发送缓冲区，自定义的类型
+    std::queue<std::pair<Ptr<Packet>, Address>> m_rxBuffer; // 接收缓冲区，是个队列
     
     // 拥塞控制
     Ptr<ATPCC> m_congestionControl;    // 拥塞控制算法
