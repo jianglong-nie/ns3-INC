@@ -138,6 +138,10 @@ class ATPBulkSendApplication : public Application
      */
     bool GetEnableATPTag() const;
 
+    void ConnectionSucceeded(Ptr<Socket> socket);
+    void ConnectionFailed(Ptr<Socket> socket);
+    void DataSend(Ptr<Socket> socket, uint32_t);
+
   protected:
     void DoDispose() override;
 
@@ -184,41 +188,6 @@ class ATPBulkSendApplication : public Application
     /// and header
     TracedCallback<Ptr<const Packet>, const Address&, const Address&, const ATPHeader&>
         m_txTraceWithATPHeader;
-
-  private:
-    /**
-     * \brief Connection Succeeded (called by Socket through a callback)
-     * \param socket the connected socket
-     */
-    void ConnectionSucceeded(Ptr<Socket> socket);
-    /**
-     * \brief Connection Failed (called by Socket through a callback)
-     * \param socket the connected socket
-     */
-    void ConnectionFailed(Ptr<Socket> socket);
-    /**
-     * \brief Send more data as soon as some has been transmitted.
-     *
-     * Used in socket's SetSendCallback - params are forced by it.
-     *
-     * \param socket socket to use
-     * \param unused actually unused
-     */
-    void DataSend(Ptr<Socket> socket, uint32_t unused);
-
-    /**
-     *  \brief Packet retransmitted (called by TcpSocketBase sockets via callback)
-     *  \param p the retransmitted packet
-     *  \param header the TCP header
-     *  \param localAddr the local address
-     *  \param peerAddr the peer address
-     *  \param socket the socket that retransmitted the packet
-     */
-    /*void PacketRetransmitted(Ptr<const Packet> p,
-                             const TcpHeader& header,
-                             const Address& localAddr,
-                             const Address& peerAddr,
-                             Ptr<const TcpSocketBase> socket);*/
 };
 
 } // namespace ns3

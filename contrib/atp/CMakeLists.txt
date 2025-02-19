@@ -33,6 +33,10 @@ set(source_files
 
     model/atp-packet-sink.cc
     helper/atp-packet-sink-helper.cc
+
+    model/atp-csma-channel.cc
+    model/atp-csma-net-device.cc
+    helper/atp-csma-helper.cc
 )
 
 set(header_files
@@ -58,6 +62,10 @@ set(header_files
 
     model/atp-packet-sink.h
     helper/atp-packet-sink-helper.h
+
+    model/atp-csma-channel.h
+    model/atp-csma-net-device.h
+    helper/atp-csma-helper.h
 )
 
 build_lib(

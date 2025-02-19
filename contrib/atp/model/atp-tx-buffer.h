@@ -4,6 +4,7 @@
 #include "ns3/object.h"
 #include "ns3/packet.h"
 #include "ns3/simulator.h"
+#include "ns3/traced-value.h"
 
 #include <queue>
 #include <vector>
@@ -101,7 +102,8 @@ class ATPTxBuffer : public Object
     uint32_t m_packetNum;               //!< 进入缓冲区的数据包总数量
 
     // 窗口管理
-    uint32_t m_cwnd{1};                 //!< 拥塞窗口长度
+    uint32_t m_cwnd{1};                //!< 拥塞窗口长度
+    TracedValue<uint32_t> m_cwndTrace; //!< 拥塞窗口长度
     uint32_t m_nextExpectedAckId{1};    //!< 期望收到的下一个ACK的ID
 };
 

@@ -37,12 +37,12 @@ NS_LOG_COMPONENT_DEFINE("ATPBulkCsmaExample");
 int
 main(int argc, char* argv[])
 {
-    LogComponentEnable("ATPBulkSendApplication", LOG_LEVEL_ALL);
-    LogComponentEnable("PacketSink", LOG_LEVEL_ALL);
-    //LogComponentEnable("TcpSocketBase", LOG_LEVEL_INFO);
+    //LogComponentEnable("ATPBulkSendApplication", LOG_LEVEL_ALL);
+    //LogComponentEnable("PacketSink", LOG_LEVEL_ALL);
+    //LogComponentEnable("TcpSocketBase", LOG_LEVEL_ALL);
 
     bool tracing = false;
-    uint32_t maxBytes = 2000;
+    uint32_t maxBytes = 100;
 
     //
     // Allow the user to override any of the defaults at

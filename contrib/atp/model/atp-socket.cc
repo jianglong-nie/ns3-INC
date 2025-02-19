@@ -57,7 +57,7 @@ ATPSocket::ATPSocket()
     m_connected = false;
     
     // 初始拥塞控制窗口
-    m_cwnd = 2;
+    m_initCwnd = 2;
     // 重传
     m_rto = MilliSeconds(200);
 
@@ -69,7 +69,7 @@ ATPSocket::ATPSocket()
 
     m_txBuffer = CreateObject<ATPTxBuffer>();
     m_txBuffer->SetMaxBufferSize(m_txBufferSize); // 设置发送缓冲区最大容量
-    m_txBuffer->SetCwnd(m_cwnd);
+    m_txBuffer->SetCwnd(m_initCwnd);
     // m_rxBuffer已经定义了
 
 }
@@ -458,8 +458,8 @@ ATPSocket::RetransmitExpired()
     NS_LOG_FUNCTION(this);
     NS_LOG_INFO("Retransmit timer expired at " << Simulator::Now().GetSeconds() << "s");
 
-    m_cwnd = m_cwnd / 2;
-    NS_LOG_INFO("Retransmit timer expired, update congestion window to " << m_cwnd);
+    m_initCwnd = m_initCwnd / 2;
+    NS_LOG_INFO("Retransmit timer expired, update congestion window to " << m_initCwnd);
 
     // 重新发送数据
     SendWindowData();

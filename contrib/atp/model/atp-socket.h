@@ -94,6 +94,12 @@ class ATPSocket : public Socket
     void DeallocateEndPoint();
     void CancelAllTimers();
 
+    /**
+     * \brief Get the transmission buffer
+     * \return pointer to the transmission buffer
+     */
+    Ptr<ATPTxBuffer> GetTxBuffer() const { return m_txBuffer; }
+
   protected:
     void SendWindowData();
     int DoSend(Ptr<Packet> p);
@@ -159,7 +165,7 @@ class ATPSocket : public Socket
     Ptr<ATPCC> m_congestionControl;    // 拥塞控制算法
     uint32_t m_nextSeqNo;              // 下一个序列号
     uint32_t m_highestRxSeqNo;         // 最高接收序列号
-    uint32_t m_cwnd;                   // 拥塞窗口
+    uint32_t m_initCwnd;               // 初始拥塞窗口
     uint32_t m_ssthresh;               // 慢启动阈值
     uint32_t m_mss;                    // 最大报文段大小
 

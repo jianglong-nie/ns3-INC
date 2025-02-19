@@ -45,16 +45,6 @@ build_lib_example(
 )
 
 build_lib_example(
-    NAME atp-bridge-cc
-    SOURCE_FILES atp-bridge-cc.cc
-    LIBRARIES_TO_LINK ${libatp}
-                      ${libinternet}
-                      ${libapplications}
-                      ${libcsma}
-                      ${libbridge}
-)
-
-build_lib_example(
     NAME atp-tcp-cc
     SOURCE_FILES atp-tcp-cc.cc
     LIBRARIES_TO_LINK ${libatp}
@@ -71,4 +61,14 @@ build_lib_example(
                       ${libinternet}
                       ${libapplications}
                       ${libpoint-to-point}
+)
+
+build_lib_example(
+    NAME atp-csma-bridge
+    SOURCE_FILES atp-csma-bridge.cc
+    LIBRARIES_TO_LINK ${libatp}
+                      ${libinternet}
+                      ${libapplications}
+                      ${libcsma}
+                      ${libbridge}
 )

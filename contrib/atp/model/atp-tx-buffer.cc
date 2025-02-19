@@ -12,7 +12,11 @@ ATPTxBuffer::GetTypeId()
   static TypeId tid = TypeId("ns3::ATPTxBuffer")
     .SetParent<Object>()
     .SetGroupName("Internet")
-    .AddConstructor<ATPTxBuffer>();
+    .AddConstructor<ATPTxBuffer>()
+    .AddTraceSource("cwndTrace",
+                    "Congestion window length",
+                    MakeTraceSourceAccessor(&ATPTxBuffer::m_cwndTrace),
+                    "ns3::TracedValueCallback::Uint32");
   return tid;
 }
 
@@ -154,10 +158,12 @@ ATPTxBuffer::UpdateWindow(bool isOrdered)
     if (isOrdered) {
         // 按序到达，窗口长度增加1，更新窗口左边界
         m_cwnd++;
+        m_cwndTrace = m_cwnd;
         m_nextExpectedAckId++;
     } else {
         // 乱序到达，窗口长度减半，窗口左边界不变，开始重传数据包
-        m_cwnd = std::max(static_cast<uint32_t>(2), m_cwnd / 2);
+        m_cwnd = (m_cwnd / 2 > 0) ? m_cwnd / 2 : 1;
+        m_cwndTrace = m_cwnd;
     }
     NS_LOG_INFO("Update window: cwnd = " << m_cwnd 
                 << ", ordered = " << isOrdered);

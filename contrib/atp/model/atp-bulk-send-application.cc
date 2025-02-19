@@ -137,6 +137,7 @@ ATPBulkSendApplication::StartApplication() // Called at time specified by Start
     // Create the socket if not already
     if (!m_socket)
     {
+        NS_LOG_INFO("Create socket");
         m_socket = Socket::CreateSocket(GetNode(), m_tid);
         int ret = -1;
 
@@ -191,6 +192,7 @@ ATPBulkSendApplication::StartApplication() // Called at time specified by Start
     }
     if (m_connected)
     {
+        NS_LOG_INFO("connected, send data");
         //m_socket->GetSockName(from);
         SendData(from, m_peer);
     }
@@ -356,18 +358,21 @@ ATPBulkSendApplication::PacketRetransmitted(Ptr<const Packet> p,
 void
 ATPBulkSendApplication::SetJobId(uint32_t jobId)
 {
+    NS_LOG_FUNCTION(this << jobId);
     m_jobId = jobId;
 }
 
 uint32_t
 ATPBulkSendApplication::GetJobId() const
 {
+    NS_LOG_FUNCTION(this);
     return m_jobId;
 }
 
 void
 ATPBulkSendApplication::Setup(Address sinkAddress, Ptr<Socket> socket, uint64_t maxBytes, uint32_t jobId)
 {   
+    NS_LOG_FUNCTION(this << sinkAddress << socket << maxBytes << jobId);
     m_peer = sinkAddress;
     m_socket = socket;
     m_maxBytes = maxBytes;
@@ -377,18 +382,21 @@ ATPBulkSendApplication::Setup(Address sinkAddress, Ptr<Socket> socket, uint64_t 
 void
 ATPBulkSendApplication::SetEnableATPTag(bool enableATPTag)
 {
+    NS_LOG_FUNCTION(this << enableATPTag);
     m_enableATPTag = enableATPTag;
 }
 
 bool
 ATPBulkSendApplication::GetEnableATPTag() const
 {
+    NS_LOG_FUNCTION(this);
     return m_enableATPTag;
 }
 
 void
 ATPBulkSendApplication::SetSocket(Ptr<Socket> socket)
 {
+    NS_LOG_FUNCTION(this << socket);
     m_socket = socket;
 }
 
