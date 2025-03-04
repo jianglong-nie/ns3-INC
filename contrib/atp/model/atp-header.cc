@@ -36,26 +36,37 @@ ATPHeader::GetInstanceTypeId() const
 }
 
 ATPHeader::ATPHeader()
-    : m_flags(NONE),
+    : m_packetType(UNKNOWN),
+      m_jobId(0),
       m_seqNum(0),
       m_ackNum(0),
-      m_windowSize(0xffff)
+      m_size(0),
+      m_windowSize(0xffff),
+      m_sourcePort(0xfffd),
+      m_destinationPort(0xfffd)
 {
     NS_LOG_FUNCTION(this);
 }
 
 void
-ATPHeader::SetFlags(uint8_t flags)
+ATPHeader::SetPacketType(PacketType type)
 {
-    NS_LOG_FUNCTION(this << static_cast<uint32_t>(flags));
-    m_flags = flags;
+    NS_LOG_FUNCTION(this << static_cast<int>(type));
+    m_packetType = static_cast<uint8_t>(type);
+}
+
+void
+ATPHeader::ClearPacketType()
+{
+    NS_LOG_FUNCTION(this);
+    m_packetType = UNKNOWN;
 }
 
 uint8_t
-ATPHeader::GetFlags() const
+ATPHeader::GetPacketType() const
 {
     NS_LOG_FUNCTION(this);
-    return m_flags;
+    return m_packetType;
 }
 
 void
@@ -188,7 +199,7 @@ uint32_t
 ATPHeader::GetSerializedSize() const
 {
     NS_LOG_FUNCTION(this);
-    return 1 + // flags
+    return 1 + // packet type
            1 + // seq
            1 + // ack number
            1 + // job id
@@ -203,7 +214,7 @@ ATPHeader::Serialize(Buffer::Iterator start) const
 {
     NS_LOG_FUNCTION(this << &start);
     Buffer::Iterator i = start;
-    i.WriteU8(m_flags);
+    i.WriteU8(m_packetType);
     i.WriteU8(m_seqNum);
     i.WriteU8(m_ackNum);
     i.WriteU8(m_jobId);
@@ -218,7 +229,7 @@ ATPHeader::Deserialize(Buffer::Iterator start)
 {
     NS_LOG_FUNCTION(this << &start);
     Buffer::Iterator i = start;
-    m_flags = i.ReadU8();
+    m_packetType = i.ReadU8();
     m_seqNum = i.ReadU8();
     m_ackNum = i.ReadU8();
     m_jobId = i.ReadU8();
@@ -233,10 +244,17 @@ void
 ATPHeader::Print(std::ostream& os) const
 {
     NS_LOG_FUNCTION(this << &os);
-    os << "(flags=" << static_cast<uint32_t>(m_flags)
-       << " seq=" << m_seqNum
-       << " ack=" << m_ackNum
-       << " jobId=" << m_jobId
+    std::string flags;
+    if (m_packetType & DATA) flags += "DATA ";
+    if (m_packetType & ACK) flags += "ACK ";
+    if (m_packetType & AGGREGATED) flags += "AGGREGATED ";
+    if (m_packetType & CONGESTED) flags += "CONGESTED ";
+    if (m_packetType == UNKNOWN) flags = "UNKNOWN";
+    
+    os << "(type=" << flags
+       << " seq=" << static_cast<uint32_t>(m_seqNum)
+       << " ack=" << static_cast<uint32_t>(m_ackNum)
+       << " jobId=" << static_cast<uint32_t>(m_jobId)
        << " window=" << m_windowSize
        << " size=" << m_size << ")";
 }

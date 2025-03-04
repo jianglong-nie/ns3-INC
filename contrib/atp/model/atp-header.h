@@ -20,7 +20,7 @@ namespace ns3
  * \brief ATP packet header
  *
  * The header contains: 多少字节？
- * 1. 控制标志 -- m_flags -- 1字节
+ * 1. 控制标志 -- m_packetType -- 1字节
  * 2. 任务ID -- m_jobId -- 1字节
  * 3. 序列号 -- m_seqNum -- 1字节
  * 4. 确认号 -- m_ackNum -- 1字节
@@ -38,14 +38,19 @@ class ATPHeader : public Header
   public:
     ATPHeader();
 
-    // 控制标志
-    enum Flags_t {
-      NONE = 0,    // 普通数据包
-      ACK  = 0x1,  // 确认包
-      ECN  = 0x2,  // ECN标记
+    // 定义数据包类型
+    enum PacketType : uint8_t {
+      DATA = 0x01,         // 普通数据包
+      ACK = 0x02,          // 确认包
+      AGGREGATED = 0x04,   // 聚合数据包
+      CONGESTED = 0x08,    // 拥塞通知
+      UNKNOWN = 0x00       // 未知类型
     };
-    void SetFlags(uint8_t flags);
-    uint8_t GetFlags() const;
+
+    // 设置和获取数据包类型
+    void SetPacketType(PacketType type);
+    void ClearPacketType();
+    uint8_t GetPacketType() const;
 
     // 任务ID
     void SetJobId(uint8_t jobId);
@@ -89,12 +94,11 @@ class ATPHeader : public Header
     uint32_t GetSerializedSize() const override;
     void Serialize(Buffer::Iterator start) const override;
     uint32_t Deserialize(Buffer::Iterator start) override;
-
     void Print(std::ostream& os) const override;
 
   private:
 
-    uint8_t m_flags{0};                 //!< 控制标志
+    uint8_t m_packetType{UNKNOWN};      //!< 数据包类型
     uint8_t m_jobId{0};                 //!< 任务ID
     uint8_t m_seqNum{0};                //!< 序列号
     uint8_t m_ackNum{0};                //!< 确认号

@@ -115,58 +115,51 @@ ATPTxBuffer::SendPacket()
 }
 
 bool
-ATPTxBuffer::ProcessAck(uint32_t packetId)
-{
-    NS_LOG_FUNCTION(this << packetId);
-    
-    // 先判断是否按序到达，根据情况处理拥塞窗口
-    // 如果按序，从m_sentQueue中移除已确认的包，否则重传所有的包
-    if (IsOrderedAck(packetId)) {
-        UpdateWindow(true);
-        // 从m_sentQueue中移除已确认的包
-        while (!m_sentQueue.empty())
-        {
-            ATPTxItem* item = m_sentQueue.front();
-            if (item->m_packetId <= packetId)
-            {
-                m_sentQueue.pop();
-                delete item;
-            }
-            else
-            {
-                break;
-            }
-        }
-        return true;
-    }
-    else {
-        NS_LOG_INFO("Unordered ack, update window");
-        UpdateWindow(false);
-        return false;
-    }
-}
-
-bool
 ATPTxBuffer::IsOrderedAck(uint32_t packetId) const
 {
     return packetId == m_nextExpectedAckId;
 }
 
 void
-ATPTxBuffer::UpdateWindow(bool isOrdered)
+ATPTxBuffer::ProcessOrderedAck(uint32_t packetId)
 {
-    if (isOrdered) {
-        // 按序到达，窗口长度增加1，更新窗口左边界
+    NS_LOG_FUNCTION(this << packetId);
+    
+    // 从m_sentQueue中移除已确认的包
+    ATPTxItem* item = m_sentQueue.front();
+    if (item->m_packetId == packetId)
+    {
+        m_sentQueue.pop();
+        delete item;
+
+        // 更新期望的ACK序号
+        m_nextExpectedAckId++;
+
+        // 按序到达，窗口长度增加1
         m_cwnd++;
         m_cwndTrace = m_cwnd;
-        m_nextExpectedAckId++;
-    } else {
-        // 乱序到达，窗口长度减半，窗口左边界不变，开始重传数据包
+    }
+    else{  
+        NS_LOG_WARN("Ordered ack, but packetId in m_sentQueue is not expected");
+    }
+}
+
+void
+ATPTxBuffer::ProcessUnorderedAck(uint32_t packetId)
+{
+    NS_LOG_FUNCTION(this << packetId);
+    if (packetId < m_nextExpectedAckId)
+    {
+        NS_LOG_WARN("Unordered ack, but packetId is less than m_nextExpectedAckId");
+        return;
+    }
+    else{
+        // 乱序到达，窗口长度减半
+        // 需要重传数据包，将m_sentQueue中数据包都重传一遍
         m_cwnd = (m_cwnd / 2 > 0) ? m_cwnd / 2 : 1;
         m_cwndTrace = m_cwnd;
     }
-    NS_LOG_INFO("Update window: cwnd = " << m_cwnd 
-                << ", ordered = " << isOrdered);
+    
 }
 
 } // namespace ns3

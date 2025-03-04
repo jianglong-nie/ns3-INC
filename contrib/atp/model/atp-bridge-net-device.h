@@ -7,12 +7,15 @@
 #define ATP_BRIDGE_NET_DEVICE_H
 
 #include "atp-bridge-channel.h"
+#include "atp-tag.h"
+#include "atp-header.h"
 
 #include "ns3/mac48-address.h"
 #include "ns3/net-device.h"
 #include "ns3/nstime.h"
 
 #include <map>
+#include <utility>
 #include <stdint.h>
 #include <string>
 
@@ -26,6 +29,42 @@ namespace ns3
 {
 
 class Node;
+
+/**
+ * \brief 用于在bridge中存储和聚合数据包的buffer类
+ */
+class Aggregator
+{
+public:
+    Aggregator();
+    ~Aggregator();
+
+    void SetFaninDegree(uint32_t faninDegree);
+    
+    /**
+     * \brief 添加一个数据包到聚合器
+     * \param packet 要添加的数据包
+     * \return 如果达到聚合条件返回true,否则返回false
+     */
+    bool AddPacket(Ptr<const Packet> packet);
+
+    /**
+     * \brief 获取聚合后的数据包
+     * \return 聚合后的数据包
+     */
+    Ptr<Packet> GetAggregatedPacket() const;
+
+    uint8_t m_jobId = 0;
+    uint8_t m_seqNum = 0;
+    uint32_t m_count = 0;
+    uint32_t m_faninDegree = 2;
+    Ptr<Packet> m_packet;   //!< 存储的数据包
+
+    /**
+     * \brief 重置聚合器状态
+     */
+    void Reset();
+};
 
 /**
  * \defgroup bridge Bridge Network Device
@@ -193,6 +232,20 @@ class ATPBridgeNetDevice : public NetDevice
      */
     Ptr<NetDevice> GetLearnedState(Mac48Address source);
 
+    /**
+     * \brief 对接收的数据包检测在
+     * \param incomingPort the packet incoming port
+     * \param packet the packet
+     * \param protocol the packet protocol (e.g., Ethertype)
+     * \param src the packet source
+     * \param dst the packet destination
+     */
+    void AggregatePacket(Ptr<NetDevice> incomingPort,
+                        Ptr<const Packet> packet,
+                        uint16_t protocol,
+                        Mac48Address src,
+                        Mac48Address dst);
+
   private:
     NetDevice::ReceiveCallback m_rxCallback;               //!< receive callback
     NetDevice::PromiscReceiveCallback m_promiscRxCallback; //!< promiscuous receive callback
@@ -217,6 +270,9 @@ class ATPBridgeNetDevice : public NetDevice
     uint32_t m_ifIndex;                                //!< Interface index
     uint16_t m_mtu;                                    //!< MTU of the bridged NetDevice
     bool m_enableLearning;                             //!< true if the bridge will learn the node status
+
+    static const uint32_t MAX_AGGREGATORS = 1000; //!< 最大聚合器数量
+    std::vector<Aggregator> m_aggregators;   //!< 聚合器列表,直接存储值而不是指针
 };
 
 } // namespace ns3

@@ -256,6 +256,7 @@ ATPBulkSendApplication::SendData(const Address& from, const Address& to)
             tag.SetSize(toSend);
             packet = Create<Packet>(toSend);
             packet->AddPacketTag(tag);
+            NS_LOG_INFO("Adding ATP tag with JobId=" << m_jobId << ", SeqNum=" << m_seq);
              // Trace before adding tag, for consistency with PacketSink
             m_txTrace(packet);
         }

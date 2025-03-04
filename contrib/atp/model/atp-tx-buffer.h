@@ -84,7 +84,14 @@ class ATPTxBuffer : public Object
      * \param packetId 收到的ACK包ID
      * \return 是否按序
      */
-    bool ProcessAck(uint32_t packetId); 
+    void ProcessOrderedAck(uint32_t packetId); 
+
+    /**
+     * \brief 处理乱序ACK
+     * \param packetId 收到的ACK包ID
+     * \return 是否按序
+     */
+    void ProcessUnorderedAck(uint32_t packetId);
 
     /**
      * \brief 更新拥塞窗口

@@ -21,6 +21,8 @@
 
 #include <queue>
 #include <stdint.h>
+#include <map>
+#include <vector>
 
 namespace ns3 {
 
@@ -100,6 +102,10 @@ class ATPSocket : public Socket
      */
     Ptr<ATPTxBuffer> GetTxBuffer() const { return m_txBuffer; }
 
+    // 设置job 与 节点 <地址, 端口> 的映射
+    void AddAddressMapping(uint8_t jobId, const Ipv4Address& addr, uint16_t port);
+    const std::vector<std::pair<Ipv4Address, uint16_t>>& GetAddressMapping(uint8_t jobId) const;
+
   protected:
     void SendWindowData();
     int DoSend(Ptr<Packet> p);
@@ -119,19 +125,10 @@ class ATPSocket : public Socket
     // 处理ack包
     void ReceiveAck(ATPHeader atpHeader);
     void SendAck(ATPHeader atpHeader, Ipv4Header ipHeader);
+    void SendMultiAck(const ATPHeader& atpHeader, const Ipv4Header& ipHeader);
 
-    // 重传相关
-    void SetRetransmitTimeout(Time rto);  // 设置重传超时时间
-    void SetMaxRetries(uint32_t count);  // 设置最大重传次数
-    void StartRetransmitTimer();  // 启动重传定时器
-    void RetransmitExpired();  // 重传超时处理
-    void ProcessAck(uint32_t ackNo);  // 处理确认包
-    bool NeedsRetransmit(uint32_t seqNo);  // 判断是否需要重传
-    
-    // 拥塞控制相关
-    void SetCongestionAlgorithm(Ptr<ATPCC> cc);  // 设置拥塞控制算法
-    void UpdateCongestionWindow(uint32_t ackBytes);  // 更新拥塞窗口
-    void OnPacketLoss();  // 丢包处理
+    // 重传数据包
+    void Retransmit();
 
     // 连接到ATP/IP的其它层
     Ipv4EndPoint* m_endPoint;          // 本地端点
@@ -168,16 +165,14 @@ class ATPSocket : public Socket
     uint32_t m_initCwnd;               // 初始拥塞窗口
     uint32_t m_ssthresh;               // 慢启动阈值
     uint32_t m_mss;                    // 最大报文段大小
-
-    // 重传
-    Time m_rto;                        // 重传超时时间
-    uint32_t m_maxRetries;             // 最大重传次数
-    Timer m_retransmitTimer;           // 重传定时器
     
     // Ipv4EndPoint* m_endPoint;          // 本地端点
     // Address m_peerAddress;             // 对端地址
     TracedCallback<Ptr<const Packet>> m_txTrace;  // 发送跟踪
     TracedCallback<Ptr<const Packet>> m_rxTrace;  // 接收跟踪
+
+    // 存储已知节点的IP地址和端口映射
+    std::map<uint8_t, std::vector<std::pair<Ipv4Address, uint16_t>>> m_jobAddressMap;
 };
 
 } // namespace ns3

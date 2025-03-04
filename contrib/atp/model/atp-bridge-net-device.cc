@@ -12,6 +12,7 @@
 #include "ns3/packet.h"
 #include "ns3/simulator.h"
 #include "ns3/uinteger.h"
+#include "ns3/inet-socket-address.h"
 
 /**
  * \file
@@ -25,6 +26,156 @@ namespace ns3
 NS_LOG_COMPONENT_DEFINE("ATPBridgeNetDevice");
 
 NS_OBJECT_ENSURE_REGISTERED(ATPBridgeNetDevice);
+
+Aggregator::Aggregator()
+    : m_jobId(0),
+      m_seqNum(0),
+      m_count(0),
+      m_faninDegree(2),
+      m_packet(nullptr)
+{
+    NS_LOG_FUNCTION(this);
+}
+
+Aggregator::~Aggregator()
+{
+    NS_LOG_FUNCTION(this);
+    
+    // 如果m_packet不为空，释放它
+    if (m_packet != nullptr)
+    {
+        m_packet = nullptr;
+    }
+}
+
+void
+Aggregator::SetFaninDegree(uint32_t faninDegree)
+{
+    NS_LOG_FUNCTION(this << faninDegree);
+    m_faninDegree = faninDegree;
+}
+
+bool
+Aggregator::AddPacket(Ptr<const Packet> packet)
+{
+    NS_LOG_FUNCTION(this << packet);
+
+    m_packet = packet->Copy();
+
+    m_count++;
+    
+    // 检查是否完成聚合
+    if (m_count >= m_faninDegree)
+    {   
+        return true;  // 聚合完成，可以取出数据包了
+    }
+    
+    return false;  // 聚合未完成，继续收集数据包
+}
+
+Ptr<Packet>
+Aggregator::GetAggregatedPacket() const
+{
+    NS_LOG_FUNCTION(this);
+    return m_packet;
+}
+
+void
+Aggregator::Reset()
+{
+    NS_LOG_FUNCTION(this);
+    m_jobId = 0;
+    m_seqNum = 0;
+    m_count = 0;
+    m_packet = nullptr;
+}
+
+
+void
+ATPBridgeNetDevice::AggregatePacket(Ptr<NetDevice> incomingPort,
+                                Ptr<const Packet> packet,
+                                uint16_t protocol,
+                                Mac48Address src,
+                                Mac48Address dst)
+{
+    NS_LOG_FUNCTION_NOARGS();
+    NS_LOG_DEBUG("AggregatePacket (incomingPort="
+                 << incomingPort->GetInstanceTypeId().GetName() << ", packet=" << packet
+                 << ", protocol=" << protocol << ", src=" << src << ", dst=" << dst << ")");
+
+    // 检查数据包是否包含ATP标签
+    ATPTag atpTag;
+    if (!packet->PeekPacketTag(atpTag))
+    {
+        // 如果不是ATP数据包，直接转发
+        NS_LOG_INFO("Not ATP packet, forward directly");
+        ForwardUnicast(incomingPort, packet, protocol, src, dst);
+        return;
+    }
+    NS_LOG_INFO("ATP packet, store and aggregate");
+
+    uint8_t jobId = atpTag.GetJobId();
+    uint8_t seqNum = atpTag.GetSeqNumber();
+
+    // 查找匹配的聚合器
+    auto matchedIt = m_aggregators.end();
+    for (auto it = m_aggregators.begin(); it != m_aggregators.end(); ++it)
+    {
+        if (it->m_jobId == jobId && it->m_seqNum == seqNum)
+        {
+            matchedIt = it;
+            break;
+        }
+    }
+
+    if (matchedIt == m_aggregators.end())
+    {
+        // 如果没找到匹配的聚合器且未达到上限，创建新的
+        if (m_aggregators.size() < MAX_AGGREGATORS)
+        {
+            // 创建新的聚合器并设置JobId和SeqNum
+            m_aggregators.emplace_back();
+            matchedIt = m_aggregators.end() - 1;
+            matchedIt->m_jobId = jobId;
+            matchedIt->m_seqNum = seqNum;
+        }
+        else
+        {
+            // 达到上限，丢弃数据包
+            NS_LOG_WARN("Aggregator buffer full, packet dropped");
+            return;
+        }
+    }
+
+    // 添加数据包到聚合器
+    bool aggregationComplete = matchedIt->AddPacket(packet);
+    if (aggregationComplete)
+    {
+        // 达到聚合条件，获取聚合后的数据包
+
+        NS_LOG_INFO("ATPBridgeNetDevice AggregatePacket: Aggregation complete");
+
+        // 重新添加修改后的头部
+        Ptr<Packet> aggregatedPacket = matchedIt->GetAggregatedPacket();
+
+        ATPHeader atpHeader;
+        aggregatedPacket->RemoveHeader(atpHeader);
+
+        // 保留原有标志，添加AGGREGATED标志
+        //atpHeader.SetPacketType(ATPHeader::AGGREGATED);
+
+        aggregatedPacket->AddHeader(atpHeader);
+
+        NS_LOG_INFO("ATPBridgeNetDevice AggregatePacket: PacketType=0x" << std::hex << static_cast<int>(atpHeader.GetPacketType()) << std::dec);  
+
+        // 转发聚合后的数据包，使用原始的MAC地址
+        ForwardUnicast(incomingPort, aggregatedPacket, protocol, src, dst);
+
+        // 重置聚合器
+        matchedIt->Reset();
+    }
+}
+
 
 TypeId
 ATPBridgeNetDevice::GetTypeId()
@@ -122,7 +273,8 @@ ATPBridgeNetDevice::ReceiveFromDevice(Ptr<NetDevice> incomingPort,
         }
         else
         {
-            ForwardUnicast(incomingPort, packet, protocol, src48, dst48);
+            //ForwardUnicast(incomingPort, packet, protocol, src48, dst48);
+            AggregatePacket(incomingPort, packet, protocol, src48, dst48);
         }
         break;
     }

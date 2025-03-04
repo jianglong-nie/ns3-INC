@@ -250,8 +250,12 @@ ATPL4Protocol::Send(Ptr<Packet> packet,
     if (packet->PeekPacketTag(atpTag))
     {
         // 2. 创建并设置ATP头部
+        NS_LOG_INFO("Get ATPTag from packet");
         ATPHeader atpHeader;
-        atpHeader.SetFlags(0);
+
+        // 初始化为普通数据包类型
+        atpHeader.SetPacketType(ATPHeader::DATA);
+
         atpHeader.SetJobId(atpTag.GetJobId());
         atpHeader.SetSeqNumber(atpTag.GetSeqNumber());
         atpHeader.SetSize(atpTag.GetSize());
@@ -269,6 +273,7 @@ ATPL4Protocol::Send(Ptr<Packet> packet,
     }
     else
     {
+        NS_LOG_INFO("No ATPTag in packet");
         m_downTarget(packet, saddr, daddr, PROT_NUMBER, nullptr);
     }
 
@@ -291,8 +296,12 @@ ATPL4Protocol::Send(Ptr<Packet> packet,
     if (packet->PeekPacketTag(atpTag))
     {
         // 2. 创建并设置ATP头部
+        NS_LOG_INFO("Get ATPTag from packet");
         ATPHeader atpHeader;
-        atpHeader.SetFlags(0);
+        
+        // 初始化为普通数据包类型
+        atpHeader.SetPacketType(ATPHeader::DATA);
+        
         atpHeader.SetJobId(atpTag.GetJobId());
         atpHeader.SetSeqNumber(atpTag.GetSeqNumber());
         atpHeader.SetSize(atpTag.GetSize());
@@ -310,6 +319,7 @@ ATPL4Protocol::Send(Ptr<Packet> packet,
     }
     else
     {
+        NS_LOG_INFO("No ATPTag in packet");
         m_downTarget(packet, saddr, daddr, PROT_NUMBER, route);
     }
 }

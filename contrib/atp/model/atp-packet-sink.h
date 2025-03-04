@@ -72,6 +72,9 @@ class ATPPacketSink : public Application
 
     ~ATPPacketSink() override;
 
+    void SetSocket(Ptr<Socket> socket);
+    void SetAddressPort(Address address, uint16_t port);
+
     /**
      * \return the total bytes received in this sink app
      */

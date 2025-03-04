@@ -21,7 +21,7 @@
 #include "ns3/network-module.h"
 #include "ns3/internet-module.h"
 #include "ns3/applications-module.h"
-#include "ns3/packet-sink.h"
+//#include "ns3/packet-sink.h"
 #include "ns3/atp-module.h" // atp module
 #include "ns3/csma-module.h"
 #include "ns3/bridge-module.h"
@@ -65,9 +65,11 @@ main(int argc, char* argv[])
     LogComponentEnable("ATPSocket", LOG_LEVEL_ALL);
     LogComponentEnable("ATPBridgeNetDevice", LOG_LEVEL_ALL);
     LogComponentEnable("ATPTxBuffer", LOG_LEVEL_ALL);
+    LogComponentEnable("ATPL4Protocol", LOG_LEVEL_ALL);
+    LogComponentEnable("ATPPacketSink", LOG_LEVEL_ALL);
 
     bool tracing = false;
-    uint64_t maxBytes = 2460;
+    uint64_t maxBytes = 248;
 
     //
     // Explicitly create the nodes required by the topology (shown above).
@@ -110,13 +112,24 @@ main(int argc, char* argv[])
     ipv4.Assign(nodesDevices);
 
     NS_LOG_INFO("Create Applications.");
-    // 创建sink应用
+    // 创建PacketSink应用及其socket
     uint16_t port = 9;
     Address sinkAddress(InetSocketAddress(Ipv4Address("10.1.1.3"), port));
-    PacketSinkHelper sink("ns3::ATPSocketFactory", InetSocketAddress(Ipv4Address::GetAny(), port));
-    ApplicationContainer sinkApps = sink.Install(nodes.Get(2));
-    sinkApps.Start(Seconds(0.0));
-    sinkApps.Stop(Seconds(20.0));
+    
+    Ptr<Socket> sinkSocket = Socket::CreateSocket(nodes.Get(2), ATPSocketFactory::GetTypeId());
+    Ptr<ATPSocket> sinkATPSocket = DynamicCast<ATPSocket>(sinkSocket);
+
+    // 使用ATPPacketSink而不是PacketSink
+    Ptr<ATPPacketSink> sinkApp = CreateObject<ATPPacketSink>();
+    sinkApp->SetSocket(sinkATPSocket);
+    sinkApp->SetAddressPort(sinkAddress, port);
+    sinkApp->SetStartTime(Seconds(0.0));
+    sinkApp->SetStopTime(Seconds(20.0));
+
+    sinkATPSocket->Bind(sinkAddress);
+    sinkATPSocket->Listen();
+
+    nodes.Get(2)->AddApplication(sinkApp);
 
     // 为每个发送应用创建socket并设置跟踪
     Ptr<Socket> n0job1socket = Socket::CreateSocket(nodes.Get(0), ATPSocketFactory::GetTypeId());
@@ -161,6 +174,20 @@ main(int argc, char* argv[])
     n1job1_ATPSocket->GetTxBuffer()->TraceConnectWithoutContext("cwndTrace",
          MakeCallback(&CwndChange_n1_job1));
 
+    // 设置地址映射关系以支持聚合包的多ACK
+    NS_LOG_INFO("Setting up address mapping for job ID 1");
+    Ipv4Address n0Addr("10.1.1.1");
+    Ipv4Address n1Addr("10.1.1.2");
+    
+    // 为节点0添加节点1的地址映射(job ID 1)
+    n0job1_ATPSocket->AddAddressMapping(1, n0Addr, 9);
+    n0job1_ATPSocket->AddAddressMapping(1, n1Addr, 9);  // 端口9是应用层端口
+    
+    // 为节点1添加节点0的地址映射(job ID 1)
+    n1job1_ATPSocket->AddAddressMapping(1, n0Addr, 9);
+    n1job1_ATPSocket->AddAddressMapping(1, n1Addr, 9);
+    NS_LOG_INFO("Address mapping completed");
+
     // Set up tracing if enabled
     if (tracing)
     {
@@ -180,8 +207,7 @@ main(int argc, char* argv[])
     cwndStream_n0_job1.close();
     cwndStream_n1_job1.close();
 
-    Ptr<PacketSink> sink1 = DynamicCast<PacketSink>(sinkApps.Get(0));
-    std::cout << "Total Bytes Received: " << sink1->GetTotalRx() << std::endl;
+    std::cout << "Total Bytes Received: " << sinkApp->GetTotalRx() << std::endl;
 
     return 0;
 }

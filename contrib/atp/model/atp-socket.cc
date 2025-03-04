@@ -58,8 +58,6 @@ ATPSocket::ATPSocket()
     
     // 初始拥塞控制窗口
     m_initCwnd = 2;
-    // 重传
-    m_rto = MilliSeconds(200);
 
     m_allowBroadcast = false;
     m_txBufferSize = 596; // 默认32KB，568 = 2 packet, 用来测试数据。
@@ -439,32 +437,6 @@ ATPSocket::RecvFrom(uint32_t maxSize, uint32_t flags, Address& fromAddress)
     return p;
 }
 
-void
-ATPSocket::StartRetransmitTimer()
-{
-    NS_LOG_FUNCTION(this);
-    if (m_retxEvent.IsExpired())
-    {
-        m_retxEvent = Simulator::Schedule(m_rto, &ATPSocket::RetransmitExpired, this);
-        NS_LOG_INFO("Start retransmit timer at " << Simulator::Now().GetSeconds() 
-                    << "s, will expire at " 
-                    << (Simulator::Now() + m_rto).GetSeconds() << "s");
-    }
-}
-
-void
-ATPSocket::RetransmitExpired()
-{
-    NS_LOG_FUNCTION(this);
-    NS_LOG_INFO("Retransmit timer expired at " << Simulator::Now().GetSeconds() << "s");
-
-    m_initCwnd = m_initCwnd / 2;
-    NS_LOG_INFO("Retransmit timer expired, update congestion window to " << m_initCwnd);
-
-    // 重新发送数据
-    SendWindowData();
-}
-
 int
 ATPSocket::Send(Ptr<Packet> p, uint32_t flags)
 {
@@ -532,53 +504,6 @@ ATPSocket::SendWindowData()
         // 发送数据包
         DoSend(packet);
     }
-    
-
-    /*
-    // 检查已发送缓冲区(m_sentQueue)是否为空，也就是窗口
-    // 如果不为空，说明有数据包的ACK未收到，需要重传
-    // 只有当已发送缓冲区为空时，才发送新数据
-    if (m_txBuffer->IsSentBufferEmpty())
-    {
-        while (sentPacketNum < availableWindow)
-        {
-
-            // 还得考虑到发送缓冲区的数据短于拥塞窗口的情况
-            // 那就得通知上层塞数据了
-            Ptr<Packet> packet = m_txBuffer->NextPacket();
-            if (packet == nullptr)
-            {
-                NS_LOG_INFO("No packet to send");
-                break;
-            }
-            else
-            {
-                // 启动重传定时器
-                StartRetransmitTimer();
-                DoSend(packet);
-                sentPacketNum++;
-            }
-        }
-
-        return sentPacketNum;
-    }
-    else
-    {
-        // 重传
-        NS_LOG_INFO("sent buffer is not empty, there are packets waiting to retransmit");
-
-        
-        // 发送m_txBuffer中sent的包
-        while (!m_txBuffer->IsSentBufferEmpty())
-        {
-            Ptr<Packet> packet = m_txBuffer->NextRetransmitPacket();
-            DoSend(packet);
-            sentPacketNum++;
-        }
-
-        return sentPacketNum;
-    }
-    */
 }
 
 int
@@ -667,6 +592,14 @@ ATPSocket::SendTo(Ptr<Packet> p, uint32_t flags, const Address& address)
 }
 
 void
+ATPSocket::Retransmit()
+{
+    NS_LOG_FUNCTION(this);
+    NS_LOG_INFO("Retransmit at time " << Simulator::Now().GetSeconds() << "s");
+    // 重传数据包
+}
+
+void
 ATPSocket::ReceiveAck(ATPHeader atpHeader)
 {
     NS_LOG_FUNCTION(this << atpHeader);
@@ -674,22 +607,19 @@ ATPSocket::ReceiveAck(ATPHeader atpHeader)
     NS_LOG_INFO("Receive ack at time" << Simulator::Now().GetSeconds() << "s");
     NS_LOG_INFO("Process ack number " << atpHeader.GetAckNumber());
 
-    // 1. 更新已发送缓冲区
-    m_txBuffer->ProcessAck(atpHeader.GetAckNumber());
-    
-    // 2.取消当前的重传定时器
-    if (!m_retxEvent.IsExpired())
+    // 判断收到的ack是否按序到达
+    if (m_txBuffer->IsOrderedAck(atpHeader.GetAckNumber()))
     {
-        // 调整rto，rto是什么？
-        m_retxEvent.Cancel();
-        m_rto = Max(MilliSeconds(200), m_rto - MilliSeconds(10));
+        // 处理按序到达的ack
+        m_txBuffer->ProcessOrderedAck(atpHeader.GetAckNumber());
     }
-    /*else
+    else
     {
-        // 如果是重传后收到的ACK，增加RTO
-        m_rto = Min(Seconds(1), m_rto * 2);
-        NS_LOG_INFO("Adjusted RTO to " << m_rto.GetMilliSeconds() << "ms");
-    }*/
+        // 处理乱序到达的ack
+        m_txBuffer->ProcessUnorderedAck(atpHeader.GetAckNumber());
+        // 执行重传函数
+        Retransmit();
+    }
 
     // 通知上层继续发送数据到缓冲区
     NS_LOG_INFO("Notify ATPBulkSendApplication to send data");
@@ -703,7 +633,7 @@ ATPSocket::SendAck(ATPHeader atpHeader, Ipv4Header ipHeader)
 
     // 返回一个ack数据包给发送端
     ATPHeader ackHeader;
-    ackHeader.SetFlags(ATPHeader::ACK);
+    ackHeader.SetPacketType(ATPHeader::ACK);
     ackHeader.SetJobId(atpHeader.GetJobId());
     ackHeader.SetAckNumber(atpHeader.GetSeqNumber());
 
@@ -727,6 +657,58 @@ ATPSocket::SendAck(ATPHeader atpHeader, Ipv4Header ipHeader)
                 ackSourcePort, ackDestinationPort);
 }
 
+
+void
+ATPSocket::SendMultiAck(const ATPHeader& atpHeader, const Ipv4Header& ipHeader)
+{
+    NS_LOG_FUNCTION(this << atpHeader << ipHeader);
+    NS_LOG_INFO("Send multi-ack");
+    
+    // 获取该作业的地址映射
+    const auto& addrList = GetAddressMapping(atpHeader.GetJobId());
+    
+    // 检查是否有地址映射
+    if (addrList.empty()) {
+        NS_LOG_WARN("No address mapping found for job ID " << 
+                    static_cast<uint32_t>(atpHeader.GetJobId()));
+        return;
+    }
+    
+    // 向所有映射的地址发送ACK
+    for (const auto& addrPair : addrList)
+    {
+        // 创建ACK头部
+        ATPHeader ackHeader;
+        ackHeader.SetPacketType(ATPHeader::ACK);
+        ackHeader.SetJobId(atpHeader.GetJobId());
+        ackHeader.SetAckNumber(atpHeader.GetSeqNumber());
+        
+        // ack包的源地址和目的地址与发送的包相反
+        Ipv4Address ackSource = ipHeader.GetDestination();
+        uint16_t ackSourcePort = atpHeader.GetDestinationPort();
+
+        Ipv4Address ackDestination = addrPair.first;
+        uint16_t ackDestinationPort = addrPair.second;
+
+        // 设置端口
+        ackHeader.SetSourcePort(ackSourcePort);
+        ackHeader.SetDestinationPort(ackDestinationPort);
+        
+        Ptr<Packet> ackPacket = Create<Packet>();
+        ackPacket->AddHeader(ackHeader);
+        
+        NS_LOG_INFO("Send multi-ack from " << ipHeader.GetDestination() 
+                    << ":" << atpHeader.GetDestinationPort()
+                    << " to " << addrPair.first << ":" << addrPair.second
+                    << " at time " << Simulator::Now().GetSeconds() << "s");
+        
+        // 向映射地址发送ACK
+        m_atp->Send(ackPacket, ackSource, ackDestination,
+                    ackSourcePort, ackDestinationPort);
+    }
+}
+
+
 void
 ATPSocket::ForwardUp(Ptr<Packet> packet, 
                      Ipv4Header header, 
@@ -744,7 +726,7 @@ ATPSocket::ForwardUp(Ptr<Packet> packet,
     // 判断是否是ack数据包，可能ackNumber不对，应该选别的。
     ATPHeader atpHeader;
     packet->PeekHeader(atpHeader);
-    if (atpHeader.GetFlags() & ATPHeader::ACK)
+    if (atpHeader.GetPacketType() == ATPHeader::ACK)
     {
         // 处理ack包
         ReceiveAck(atpHeader);
@@ -764,13 +746,47 @@ ATPSocket::ForwardUp(Ptr<Packet> packet,
             NotifyDataRecv();
 
             // 发送ack包
-            SendAck(atpHeader, header);
+            SendMultiAck(atpHeader, header);
         }
         else
         {
             NS_LOG_WARN("No receive buffer space available.  Drop.");
             m_dropTrace(packet);
         }
+    }
+}
+
+const std::vector<std::pair<Ipv4Address, uint16_t>>& 
+ATPSocket::GetAddressMapping(uint8_t jobId) const
+{
+    NS_LOG_FUNCTION(this << static_cast<uint32_t>(jobId));
+    static const std::vector<std::pair<Ipv4Address, uint16_t>> emptyList;
+    
+    auto it = m_jobAddressMap.find(jobId);
+    if (it != m_jobAddressMap.end()) {
+        return it->second;
+    }
+    return emptyList;
+}
+
+void
+ATPSocket::AddAddressMapping(uint8_t jobId, const Ipv4Address& addr, uint16_t port)
+{
+    NS_LOG_FUNCTION(this << static_cast<uint32_t>(jobId) << addr << port);
+    
+    // 检查是否已存在
+    auto it = m_jobAddressMap.find(jobId);
+    if (it != m_jobAddressMap.end()) {
+        for (const auto& pair : it->second) {
+            if (pair.first == addr && pair.second == port) {
+                return; // 已存在，不添加
+            }
+        }
+        it->second.push_back(std::make_pair(addr, port));
+    } else {
+        std::vector<std::pair<Ipv4Address, uint16_t>> list;
+        list.push_back(std::make_pair(addr, port));
+        m_jobAddressMap[jobId] = list;
     }
 }
 

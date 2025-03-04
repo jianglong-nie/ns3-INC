@@ -81,6 +81,21 @@ ATPPacketSink::~ATPPacketSink()
     NS_LOG_FUNCTION(this);
 }
 
+void
+ATPPacketSink::SetSocket(Ptr<Socket> socket)
+{
+    NS_LOG_FUNCTION(this << socket);
+    m_socket = socket;
+}
+
+void
+ATPPacketSink::SetAddressPort(Address address, uint16_t port)
+{
+    NS_LOG_FUNCTION(this << address << port);
+    m_local = address;
+    m_localPort = port;
+}
+
 uint64_t
 ATPPacketSink::GetTotalRx() const
 {

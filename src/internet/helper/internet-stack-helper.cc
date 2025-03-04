@@ -338,6 +338,7 @@ InternetStackHelper::Install(Ptr<Node> node) const
         CreateAndAggregateObjectFromTypeId(node, "ns3::TrafficControlLayer");
         CreateAndAggregateObjectFromTypeId(node, "ns3::UdpL4Protocol");
         CreateAndAggregateObjectFromTypeId(node, "ns3::TcpL4Protocol");
+        CreateAndAggregateObjectFromTypeId(node, "ns3::ATPL4Protocol");
         if (!node->GetObject<PacketSocketFactory>())
         {
             Ptr<PacketSocketFactory> factory = CreateObject<PacketSocketFactory>();
