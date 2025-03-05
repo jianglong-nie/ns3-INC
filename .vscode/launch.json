@@ -93,6 +93,31 @@
             ],
             "externalConsole": false,
             "MIMode": "lldb"
+        },
+        {
+            "name": "Debug atp-csma-bridge",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/contrib/atp/examples/ns3.43-atp-csma-bridge-default",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "Build",
+            "environment": [
+                {
+                    "name": "LD_LIBRARY_PATH",
+                    "value": "${workspaceFolder}/build/lib/"
+                }
+            ],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
         }
     ],
     "inputs": [

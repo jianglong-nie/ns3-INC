@@ -61,15 +61,15 @@ main(int argc, char* argv[])
     cwndStream_n1_job1.open("n1-job1-cwnd.txt", std::ofstream::out | std::ofstream::trunc);
 
     LogComponentEnable("ATPBulkSendApplication", LOG_LEVEL_ALL);
-    LogComponentEnable("PacketSink", LOG_LEVEL_ALL);
+    LogComponentEnable("ATPPacketSink", LOG_LEVEL_ALL);
     LogComponentEnable("ATPSocket", LOG_LEVEL_ALL);
-    LogComponentEnable("ATPBridgeNetDevice", LOG_LEVEL_ALL);
+    //LogComponentEnable("ATPBridgeNetDevice", LOG_LEVEL_ALL);
     LogComponentEnable("ATPTxBuffer", LOG_LEVEL_ALL);
     LogComponentEnable("ATPL4Protocol", LOG_LEVEL_ALL);
     LogComponentEnable("ATPPacketSink", LOG_LEVEL_ALL);
 
     bool tracing = false;
-    uint64_t maxBytes = 248;
+    uint64_t maxBytes = 2480;
 
     //
     // Explicitly create the nodes required by the topology (shown above).
@@ -113,8 +113,8 @@ main(int argc, char* argv[])
 
     NS_LOG_INFO("Create Applications.");
     // 创建PacketSink应用及其socket
-    uint16_t port = 9;
-    Address sinkAddress(InetSocketAddress(Ipv4Address("10.1.1.3"), port));
+    uint16_t sinkPort = 9;
+    Address sinkAddress(InetSocketAddress(Ipv4Address("10.1.1.3"), sinkPort));
     
     Ptr<Socket> sinkSocket = Socket::CreateSocket(nodes.Get(2), ATPSocketFactory::GetTypeId());
     Ptr<ATPSocket> sinkATPSocket = DynamicCast<ATPSocket>(sinkSocket);
@@ -122,7 +122,7 @@ main(int argc, char* argv[])
     // 使用ATPPacketSink而不是PacketSink
     Ptr<ATPPacketSink> sinkApp = CreateObject<ATPPacketSink>();
     sinkApp->SetSocket(sinkATPSocket);
-    sinkApp->SetAddressPort(sinkAddress, port);
+    sinkApp->SetAddressPort(sinkAddress, sinkPort);
     sinkApp->SetStartTime(Seconds(0.0));
     sinkApp->SetStopTime(Seconds(20.0));
 
@@ -178,14 +178,23 @@ main(int argc, char* argv[])
     NS_LOG_INFO("Setting up address mapping for job ID 1");
     Ipv4Address n0Addr("10.1.1.1");
     Ipv4Address n1Addr("10.1.1.2");
-    
-    // 为节点0添加节点1的地址映射(job ID 1)
-    n0job1_ATPSocket->AddAddressMapping(1, n0Addr, 9);
-    n0job1_ATPSocket->AddAddressMapping(1, n1Addr, 9);  // 端口9是应用层端口
-    
-    // 为节点1添加节点0的地址映射(job ID 1)
-    n1job1_ATPSocket->AddAddressMapping(1, n0Addr, 9);
-    n1job1_ATPSocket->AddAddressMapping(1, n1Addr, 9);
+
+    // 确定发送端，让发送端的socket监听端口11，以便接收聚合包的ACK
+    uint16_t senderPort = 11;
+
+    // 修改n0的socket绑定
+    Address n0Address(InetSocketAddress(Ipv4Address("10.1.1.1"), senderPort));  // 使用端口11
+    n0job1_ATPSocket->Bind(n0Address);
+    n0job1_ATPSocket->Connect(sinkAddress);
+
+    // 修改n1的socket绑定
+    Address n1Address(InetSocketAddress(Ipv4Address("10.1.1.2"), senderPort));  // 使用端口11
+    n1job1_ATPSocket->Bind(n1Address);
+    n1job1_ATPSocket->Connect(sinkAddress);
+
+    // 同时需要更新地址映射中的端口号
+    sinkATPSocket->AddAddressMapping(1, n0Addr, senderPort);
+    sinkATPSocket->AddAddressMapping(1, n1Addr, senderPort);
     NS_LOG_INFO("Address mapping completed");
 
     // Set up tracing if enabled
