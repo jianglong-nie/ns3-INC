@@ -28,14 +28,36 @@ class ATPTag : public Tag
 
     ATPTag();
 
+    // 定义数据包类型
+    // 使用具有描述性名称的常量，但底层仍然是 uint8_t
+    static constexpr uint8_t UNKNOWN = 0;
+    static constexpr uint8_t DATA = 1;
+    static constexpr uint8_t ACK = 2;
+    static constexpr uint8_t AGG = 3;
+
+    void SetPacketType(uint8_t type);
+    uint8_t GetPacketType() const;
+
     void SetJobId(uint8_t jobId);
     uint8_t GetJobId() const;
 
     void SetSeqNumber(uint8_t seqNum);
     uint8_t GetSeqNumber() const;
 
+    void SetAckNumber(uint8_t ackNum);
+    uint8_t GetAckNumber() const;
+
     void SetSize(uint16_t size);
     uint16_t GetSize() const;
+
+    void SetEcn(uint8_t ecn);
+    uint8_t GetEcn() const;
+
+    void SetSourcePort(uint16_t sourcePort);
+    uint16_t GetSourcePort() const;
+
+    void SetDestinationPort(uint16_t destinationPort);
+    uint16_t GetDestinationPort() const;
 
     // Inherited from Tag
     uint32_t GetSerializedSize() const override;
@@ -43,10 +65,22 @@ class ATPTag : public Tag
     void Deserialize(TagBuffer buf) override;
     void Print(std::ostream& os) const override;
 
+    // 添加友元运算符
+    friend std::ostream& operator<<(std::ostream& os, const ATPTag& tag)
+    {
+        tag.Print(os);
+        return os;
+    }
+
   private:
+    uint8_t m_atpPacketType{0};
     uint8_t m_jobId{0};    //!< Job ID
     uint8_t m_seqNum{0};   //!< Sequence number
+    uint8_t m_ackNum{0};   //!< Ack number
+    uint8_t m_ecn{0};      //!< ECN
     uint16_t m_size{0};    //!< Size of data to send each time
+    uint16_t m_sourcePort{0xfffd};      //!< Source port
+    uint16_t m_destinationPort{0xfffd}; //!< Destination port
 };
 
 } // namespace ns3

@@ -2,7 +2,6 @@
 #define ATP_SOCKET_H
 
 #include "atp-tag.h"
-#include "atp-header.h"
 #include "atp-tx-buffer.h"
 #include "atp-congestion-control.h"
 
@@ -29,7 +28,6 @@ namespace ns3 {
 class Node;
 class Packet;
 class ATPTag;
-class ATPHeader;
 class ATPRxBuffer;
 class ATPL4Protocol;
 class Ipv4EndPoint;
@@ -123,9 +121,9 @@ class ATPSocket : public Socket
     void ForwardUp(Ptr<Packet> p, Ipv4Header header, uint16_t sport, Ptr<Ipv4Interface> incomingInterface);
 
     // 处理ack包
-    void ReceiveAck(ATPHeader atpHeader);
-    void SendAck(ATPHeader atpHeader, Ipv4Header ipHeader);
-    void SendMultiAck(const ATPHeader& atpHeader, const Ipv4Header& ipHeader);
+    void ReceiveAck(ATPTag atpTag);
+    void SendAck(ATPTag atpTag, Ipv4Header ipHeader);
+    void SendMultiAck(const ATPTag& atpTag, const Ipv4Header& ipHeader);
 
     // 重传数据包
     void Retransmit();

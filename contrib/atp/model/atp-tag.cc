@@ -33,11 +33,30 @@ ATPTag::GetInstanceTypeId() const
 }
 
 ATPTag::ATPTag()
-    : m_jobId(0),
+    : m_atpPacketType(ATPTag::UNKNOWN),
+      m_jobId(0),
       m_seqNum(0),
-      m_size(0)
+      m_ackNum(0),
+      m_ecn(0),
+      m_size(0),
+      m_sourcePort(0xfffd),
+      m_destinationPort(0xfffd)
 {
     NS_LOG_FUNCTION(this);
+}
+
+void
+ATPTag::SetPacketType(uint8_t type)
+{
+    NS_LOG_FUNCTION(this << static_cast<int>(type));
+    m_atpPacketType = type;
+}
+
+uint8_t
+ATPTag::GetPacketType() const
+{
+    NS_LOG_FUNCTION(this);
+    return m_atpPacketType;
 }
 
 void
@@ -61,6 +80,20 @@ ATPTag::SetSeqNumber(uint8_t seqNum)
     m_seqNum = seqNum;
 }
 
+void
+ATPTag::SetAckNumber(uint8_t ackNum)
+{
+    NS_LOG_FUNCTION(this << ackNum);
+    m_ackNum = ackNum;
+}
+
+uint8_t
+ATPTag::GetAckNumber() const
+{
+    NS_LOG_FUNCTION(this);
+    return m_ackNum;
+}
+
 uint8_t
 ATPTag::GetSeqNumber() const
 {
@@ -82,36 +115,96 @@ ATPTag::GetSize() const
     return m_size;
 }
 
+void
+ATPTag::SetEcn(uint8_t ecn)
+{
+    NS_LOG_FUNCTION(this << ecn);
+    m_ecn = ecn;
+}
+
+uint8_t
+ATPTag::GetEcn() const
+{
+    NS_LOG_FUNCTION(this);
+    return m_ecn;
+}
+
+void
+ATPTag::SetSourcePort(uint16_t sourcePort)
+{
+    NS_LOG_FUNCTION(this << sourcePort);
+    m_sourcePort = sourcePort;
+}
+
+uint16_t
+ATPTag::GetSourcePort() const
+{
+    NS_LOG_FUNCTION(this);
+    return m_sourcePort;
+}
+
+void
+ATPTag::SetDestinationPort(uint16_t destinationPort)
+{
+    NS_LOG_FUNCTION(this << destinationPort);
+    m_destinationPort = destinationPort;
+}
+
+uint16_t
+ATPTag::GetDestinationPort() const
+{
+    NS_LOG_FUNCTION(this);
+    return m_destinationPort;
+}
+
 uint32_t
 ATPTag::GetSerializedSize() const
 {
     NS_LOG_FUNCTION(this);
-    return 4; // seqNum(1) + jobId(1) + size(2)
+    return  1 + 1 + 1 + 1 + 1 + 2 + 2 + 2;
+    // packetType + jobId + seqNum + ackNum + ecn + size + sourcePort + destinationPort
 }
 
 void
 ATPTag::Serialize(TagBuffer buf) const
 {
     NS_LOG_FUNCTION(this << &buf);
-    buf.WriteU8(m_seqNum);
+    buf.WriteU8(m_atpPacketType);
     buf.WriteU8(m_jobId);
+    buf.WriteU8(m_seqNum);
+    buf.WriteU8(m_ackNum);
+    buf.WriteU8(m_ecn);
     buf.WriteU16(m_size);
+    buf.WriteU16(m_sourcePort);
+    buf.WriteU16(m_destinationPort);
 }
 
 void
 ATPTag::Deserialize(TagBuffer buf)
 {
     NS_LOG_FUNCTION(this << &buf);
-    m_seqNum = buf.ReadU8();
+    m_atpPacketType = buf.ReadU8();
     m_jobId = buf.ReadU8();
+    m_seqNum = buf.ReadU8();
+    m_ackNum = buf.ReadU8();
+    m_ecn = buf.ReadU8();
     m_size = buf.ReadU16();
+    m_sourcePort = buf.ReadU16();
+    m_destinationPort = buf.ReadU16();
 }
 
-void
-ATPTag::Print(std::ostream& os) const
+void ATPTag::Print(std::ostream& os) const
 {
     NS_LOG_FUNCTION(this << &os);
-    os << "(seqNum=" << m_seqNum << " jobId=" << m_jobId << " size=" << m_size << ")";
+    os << " packetType=" << static_cast<int>(m_atpPacketType)
+       << " (seqNum=" << static_cast<int>(m_seqNum)
+       << " jobId=" << static_cast<int>(m_jobId)
+       << " ackNum=" << static_cast<int>(m_ackNum)
+       << " ecn=" << static_cast<int>(m_ecn)
+       << " size=" << m_size
+       << " sourcePort=" << m_sourcePort
+       << " destinationPort=" << m_destinationPort
+       << ")";
 }
 
 } // namespace ns3

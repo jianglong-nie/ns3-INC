@@ -1,5 +1,4 @@
 #include "atp-tag.h"
-#include "atp-header.h"
 #include "atp-l4-protocol.h"
 #include "atp-socket.h"
 #include "atp-socket-factory.h"
@@ -194,18 +193,18 @@ IpL4Protocol::RxStatus
 ATPL4Protocol::Receive(Ptr<Packet> packet, const Ipv4Header& header, Ptr<Ipv4Interface> interface)
 {
     NS_LOG_FUNCTION(this << packet << header);
-    ATPHeader atpHeader;
+    ATPTag atpTag;
 
     // 只是peek ATP头部
-    packet->PeekHeader(atpHeader);
+    packet->PeekPacketTag(atpTag);
 
     // 查找匹配的端点
     NS_LOG_DEBUG("Looking up dst " << header.GetDestination() << " port "
-                                  << atpHeader.GetDestinationPort());
+                                  << atpTag.GetDestinationPort());
     Ipv4EndPointDemux::EndPoints endPoints = m_endPoints->Lookup(header.GetDestination(),
-                                                                atpHeader.GetDestinationPort(),
+                                                                atpTag.GetDestinationPort(),
                                                                 header.GetSource(),
-                                                                atpHeader.GetSourcePort(),
+                                                                atpTag.GetSourcePort(),
                                                                 interface);
     if (endPoints.empty())
     {
@@ -213,8 +212,6 @@ ATPL4Protocol::Receive(Ptr<Packet> packet, const Ipv4Header& header, Ptr<Ipv4Int
         return IpL4Protocol::RX_ENDPOINT_UNREACH;
     }
 
-    // 移除ATP头部
-    //packet->RemoveHeader(atpHeader);
     
     // 将数据包转发给所有匹配的端点
     NS_ASSERT_MSG(endPoints.size() == 1, "ATP expects exactly one endpoint");
@@ -222,7 +219,7 @@ ATPL4Protocol::Receive(Ptr<Packet> packet, const Ipv4Header& header, Ptr<Ipv4Int
                                   << " received a packet and"
                                      " now forwarding it up to endpoint/socket");
 
-    (*endPoints.begin())->ForwardUp(packet, header, atpHeader.GetSourcePort(), interface);
+    (*endPoints.begin())->ForwardUp(packet, header, atpTag.GetSourcePort(), interface);
 
     return IpL4Protocol::RX_OK;
 }
@@ -246,29 +243,30 @@ ATPL4Protocol::Send(Ptr<Packet> packet,
     NS_LOG_FUNCTION(this << packet << saddr << daddr << sport << dport);
 
     // 1. 提取packet中的atptag
-    ATPTag atpTag;
-    if (packet->PeekPacketTag(atpTag))
+    ATPTag tag;
+    
+    bool hasATPTag = packet->PeekPacketTag(tag);
+    packet->RemovePacketTag(tag);
+
+    if (hasATPTag)
     {
-        // 2. 创建并设置ATP头部
+        // 设置Tag
         NS_LOG_INFO("Get ATPTag from packet");
-        ATPHeader atpHeader;
+        ATPTag atpTag;
 
-        // 初始化为普通数据包类型
-        atpHeader.SetPacketType(ATPHeader::DATA);
+        atpTag.SetPacketType(tag.GetPacketType());
+        atpTag.SetJobId(tag.GetJobId());
+        atpTag.SetSeqNumber(tag.GetSeqNumber());
+        atpTag.SetAckNumber(tag.GetAckNumber());
+        atpTag.SetSize(tag.GetSize());
 
-        atpHeader.SetJobId(atpTag.GetJobId());
-        atpHeader.SetSeqNumber(atpTag.GetSeqNumber());
-        atpHeader.SetSize(atpTag.GetSize());
+        atpTag.SetSourcePort(sport);
+        atpTag.SetDestinationPort(dport);
 
-        atpHeader.SetSourceAddress(saddr);
-        atpHeader.SetDestinationAddress(daddr);
-        atpHeader.SetSourcePort(sport);
-        atpHeader.SetDestinationPort(dport);
+        packet->AddPacketTag(atpTag);
 
-        // 3. 添加ATP头部到数据包
-        packet->AddHeader(atpHeader);
-
-        // 4. 发送数据包
+        NS_LOG_INFO("Send packet with ATPTag PacketType=" << static_cast<int>(atpTag.GetPacketType()));
+        // 发送数据包
         m_downTarget(packet, saddr, daddr, PROT_NUMBER, nullptr);
     }
     else
@@ -292,27 +290,30 @@ ATPL4Protocol::Send(Ptr<Packet> packet,
 
     
     // 1. 提取packet中的atptag
-    ATPTag atpTag;
-    if (packet->PeekPacketTag(atpTag))
-    {
-        // 2. 创建并设置ATP头部
-        NS_LOG_INFO("Get ATPTag from packet");
-        ATPHeader atpHeader;
-        
-        // 初始化为普通数据包类型
-        atpHeader.SetPacketType(ATPHeader::DATA);
-        
-        atpHeader.SetJobId(atpTag.GetJobId());
-        atpHeader.SetSeqNumber(atpTag.GetSeqNumber());
-        atpHeader.SetSize(atpTag.GetSize());
+    ATPTag tag;
 
-        atpHeader.SetDestinationAddress(daddr);
-        atpHeader.SetSourceAddress(saddr);
-        atpHeader.SetDestinationPort(dport);
-        atpHeader.SetSourcePort(sport);
+    bool hasATPTag = packet->PeekPacketTag(tag);
+    packet->RemovePacketTag(tag);
+
+    if (hasATPTag)
+    {
+        // 设置Tag
+        NS_LOG_INFO("Get ATPTag from packet");
+        ATPTag atpTag;
         
-        // 3. 添加头部到数据包
-        packet->AddHeader(atpHeader);
+        atpTag.SetPacketType(tag.GetPacketType());
+        atpTag.SetJobId(tag.GetJobId());
+        atpTag.SetSeqNumber(tag.GetSeqNumber());
+        atpTag.SetAckNumber(tag.GetAckNumber());
+        atpTag.SetSize(tag.GetSize());
+
+        atpTag.SetDestinationPort(dport);
+        atpTag.SetSourcePort(sport);
+        
+        
+        packet->AddPacketTag(atpTag);
+
+        NS_LOG_INFO("Send packet with ATPTag PacketType=" << static_cast<int>(atpTag.GetPacketType()));
 
         // 4. 发送数据包
         m_downTarget(packet, saddr, daddr, PROT_NUMBER, route);

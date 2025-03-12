@@ -8,7 +8,6 @@
 
 #include "atp-bridge-channel.h"
 #include "atp-tag.h"
-#include "atp-header.h"
 
 #include "ns3/mac48-address.h"
 #include "ns3/net-device.h"
@@ -40,18 +39,8 @@ public:
     ~Aggregator();
 
     void SetFaninDegree(uint32_t faninDegree);
-    
-    /**
-     * \brief 添加一个数据包到聚合器
-     * \param packet 要添加的数据包
-     * \return 如果达到聚合条件返回true,否则返回false
-     */
-    bool AddPacket(Ptr<const Packet> packet);
 
-    /**
-     * \brief 获取聚合后的数据包
-     * \return 聚合后的数据包
-     */
+    bool AddPacket(Ptr<const Packet> packet);
     Ptr<Packet> GetAggregatedPacket() const;
 
     uint8_t m_jobId = 0;
@@ -60,9 +49,7 @@ public:
     uint32_t m_faninDegree = 2;
     Ptr<Packet> m_packet;   //!< 存储的数据包
 
-    /**
-     * \brief 重置聚合器状态
-     */
+    bool IsEmpty() const {return m_count == 0;};
     void Reset();
 };
 
@@ -271,8 +258,10 @@ class ATPBridgeNetDevice : public NetDevice
     uint16_t m_mtu;                                    //!< MTU of the bridged NetDevice
     bool m_enableLearning;                             //!< true if the bridge will learn the node status
 
-    static const uint32_t MAX_AGGREGATORS = 1000; //!< 最大聚合器数量
-    std::vector<Aggregator> m_aggregators;   //!< 聚合器列表,直接存储值而不是指针
+    static const uint32_t MAX_AGGREGATORS = 50; //!< 最大聚合器数量
+    uint8_t m_ecn{0};                              //!< ECN
+    uint32_t m_threshold{8};                    //!< 聚合阈值
+    std::vector<Aggregator> m_aggregators;         //!< 聚合器列表,直接存储值而不是指针
 };
 
 } // namespace ns3

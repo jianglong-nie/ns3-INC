@@ -84,7 +84,7 @@ class ATPTxBuffer : public Object
      * \param packetId 收到的ACK包ID
      * \return 是否按序
      */
-    void ProcessOrderedAck(uint32_t packetId); 
+    void ProcessOrderedAck(uint32_t packetId, bool isEcn); 
 
     /**
      * \brief 处理乱序ACK
@@ -93,11 +93,6 @@ class ATPTxBuffer : public Object
      */
     void ProcessUnorderedAck(uint32_t packetId);
 
-    /**
-     * \brief 更新拥塞窗口
-     * \param isOrdered ACK是否按序
-     */
-    void UpdateWindow(bool isOrdered);
 
   private:
     typedef std::queue<ATPTxItem*> PacketQueue; //!< 数据包队列类型
@@ -109,6 +104,7 @@ class ATPTxBuffer : public Object
     uint32_t m_packetNum;               //!< 进入缓冲区的数据包总数量
 
     // 窗口管理
+    uint32_t m_maxCwnd{1};            //!< 最大拥塞窗口长度
     uint32_t m_cwnd{1};                //!< 拥塞窗口长度
     TracedValue<uint32_t> m_cwndTrace; //!< 拥塞窗口长度
     uint32_t m_nextExpectedAckId{1};    //!< 期望收到的下一个ACK的ID

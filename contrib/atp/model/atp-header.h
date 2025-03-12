@@ -42,14 +42,14 @@ class ATPHeader : public Header
     enum PacketType : uint8_t {
       DATA = 0x01,         // 普通数据包
       ACK = 0x02,          // 确认包
-      AGGREGATED = 0x04,   // 聚合数据包
-      CONGESTED = 0x08,    // 拥塞通知
+      AGG = 0x04,          // 聚合数据包
+      ECN = 0x08,          // 拥塞通知  
       UNKNOWN = 0x00       // 未知类型
     };
 
     // 设置和获取数据包类型
     void SetPacketType(PacketType type);
-    void ClearPacketType();
+    void ClearPacketType(PacketType type);
     uint8_t GetPacketType() const;
 
     // 任务ID

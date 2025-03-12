@@ -52,14 +52,14 @@ void
 ATPHeader::SetPacketType(PacketType type)
 {
     NS_LOG_FUNCTION(this << static_cast<int>(type));
-    m_packetType = static_cast<uint8_t>(type);
+    m_packetType |= static_cast<uint8_t>(type);
 }
 
 void
-ATPHeader::ClearPacketType()
+ATPHeader::ClearPacketType(PacketType type)
 {
-    NS_LOG_FUNCTION(this);
-    m_packetType = UNKNOWN;
+    NS_LOG_FUNCTION(this << static_cast<int>(type));
+    m_packetType &= ~static_cast<uint8_t>(type);
 }
 
 uint8_t
@@ -247,8 +247,8 @@ ATPHeader::Print(std::ostream& os) const
     std::string flags;
     if (m_packetType & DATA) flags += "DATA ";
     if (m_packetType & ACK) flags += "ACK ";
-    if (m_packetType & AGGREGATED) flags += "AGGREGATED ";
-    if (m_packetType & CONGESTED) flags += "CONGESTED ";
+    if (m_packetType & AGG) flags += "AGG ";
+    if (m_packetType & ECN) flags += "ECN ";
     if (m_packetType == UNKNOWN) flags = "UNKNOWN";
     
     os << "(type=" << flags

@@ -249,15 +249,18 @@ ATPBulkSendApplication::SendData(const Address& from, const Address& to)
         }
         else if (m_enableATPTag)
         {
-            ATPTag tag;
-            tag.SetJobId(m_jobId);
-            m_seq++; // 序列号自增，初值0，加加后从1开始计数
-            tag.SetSeqNumber(m_seq);
-            tag.SetSize(toSend);
+            ATPTag atpTag;
+            atpTag.SetPacketType(ATPTag::DATA);
+            atpTag.SetJobId(m_jobId);
+            m_seqNum++; // 序列号自增，初值0，加加后从1开始计数
+            atpTag.SetSeqNumber(m_seqNum);
+            atpTag.SetAckNumber(m_seqNum);
+            atpTag.SetSize(toSend);
             packet = Create<Packet>(toSend);
-            packet->AddPacketTag(tag);
-            NS_LOG_INFO("Adding ATP tag with JobId=" << m_jobId << ", SeqNum=" << m_seq);
-             // Trace before adding tag, for consistency with PacketSink
+            packet->AddPacketTag(atpTag);
+            NS_LOG_INFO("Adding ATP tag with JobId=" << m_jobId << ", SeqNum=" << m_seqNum
+                                << ", PacketType=" << static_cast<int>(atpTag.GetPacketType()));
+            // Trace before adding tag, for consistency with PacketSink
             m_txTrace(packet);
         }
         else
@@ -343,18 +346,6 @@ ATPBulkSendApplication::DataSend(Ptr<Socket> socket, uint32_t)
         SendData(from, to);
     }
 }
-
-/*void
-ATPBulkSendApplication::PacketRetransmitted(Ptr<const Packet> p,
-                                         const ATPHeader& header,
-                                         const Address& localAddr,
-                                         const Address& peerAddr,
-                                         Ptr<const ATPSocket> socket)
-{
-    NS_LOG_FUNCTION(this << p << header << localAddr << peerAddr << socket);
-    m_retransmissionTrace(p, header, localAddr, peerAddr, socket);
-}*/
-
 
 void
 ATPBulkSendApplication::SetJobId(uint32_t jobId)

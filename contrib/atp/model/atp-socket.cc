@@ -57,11 +57,11 @@ ATPSocket::ATPSocket()
     m_connected = false;
     
     // 初始拥塞控制窗口
-    m_initCwnd = 2;
+    m_initCwnd = 1;
 
     m_allowBroadcast = false;
-    m_txBufferSize = 596; // 默认32KB，568 = 2 packet, 用来测试数据。
-    m_rxBufferSize = 596; // 这个暂时不知道啥用
+    m_txBufferSize = 24800; 
+    m_rxBufferSize = 24800;
     m_txAvailable = m_txBufferSize;
     m_rxAvailable = 0;
 
@@ -492,13 +492,14 @@ ATPSocket::SendWindowData()
 {
     NS_LOG_FUNCTION(this);
     // 获取窗口信息
-    uint32_t availableWindow = m_txBuffer->GetCwnd();
+    uint32_t cwnd = m_txBuffer->GetCwnd();
     
     // 发送窗口内的数据
-    for (uint32_t i = 0; i < availableWindow; i++)
+    for (uint32_t i = 0; i < cwnd; i++)
     {
         Ptr<Packet> packet = m_txBuffer->SendPacket();
         if (packet == nullptr) {
+            NS_LOG_INFO("ATPSocket tx buffer is empty, no packet to send");
             break;
         }
         // 发送数据包
@@ -600,23 +601,29 @@ ATPSocket::Retransmit()
 }
 
 void
-ATPSocket::ReceiveAck(ATPHeader atpHeader)
+ATPSocket::ReceiveAck(ATPTag atpTag)
 {
-    NS_LOG_FUNCTION(this << atpHeader);
+    NS_LOG_FUNCTION(this << atpTag);
     // 打印接收ack的时间
-    NS_LOG_INFO("Receive ack at time" << Simulator::Now().GetSeconds() << "s");
-    NS_LOG_INFO("Process ack number " << atpHeader.GetAckNumber());
+    NS_LOG_INFO("Receive ack packet at time " << Simulator::Now().GetSeconds() << "s");
 
     // 判断收到的ack是否按序到达
-    if (m_txBuffer->IsOrderedAck(atpHeader.GetAckNumber()))
+    if (m_txBuffer->IsOrderedAck(atpTag.GetAckNumber()))
     {
+        bool isEcn = (atpTag.GetEcn() == 1);
         // 处理按序到达的ack
-        m_txBuffer->ProcessOrderedAck(atpHeader.GetAckNumber());
+        m_txBuffer->ProcessOrderedAck(atpTag.GetAckNumber(), isEcn);
+
+        if (!m_sendWindowDataEvent.IsPending()) {
+            m_sendWindowDataEvent = Simulator::Schedule(TimeStep(1),
+                                                        &ATPSocket::SendWindowData,
+                                                        this);
+        }
     }
     else
     {
         // 处理乱序到达的ack
-        m_txBuffer->ProcessUnorderedAck(atpHeader.GetAckNumber());
+        m_txBuffer->ProcessUnorderedAck(atpTag.GetAckNumber());
         // 执行重传函数
         Retransmit();
     }
@@ -627,27 +634,28 @@ ATPSocket::ReceiveAck(ATPHeader atpHeader)
 }
 
 void
-ATPSocket::SendAck(ATPHeader atpHeader, Ipv4Header ipHeader)
+ATPSocket::SendAck(ATPTag atpTag, Ipv4Header ipHeader)
 {
-    NS_LOG_FUNCTION(this << atpHeader << ipHeader);
+    NS_LOG_FUNCTION(this << atpTag << ipHeader);
 
     // 返回一个ack数据包给发送端
-    ATPHeader ackHeader;
-    ackHeader.SetPacketType(ATPHeader::ACK);
-    ackHeader.SetJobId(atpHeader.GetJobId());
-    ackHeader.SetAckNumber(atpHeader.GetSeqNumber());
+    ATPTag ackTag;
+    ackTag.SetPacketType(ATPTag::ACK);
+    ackTag.SetEcn(atpTag.GetEcn());
+    ackTag.SetJobId(atpTag.GetJobId());
+    ackTag.SetAckNumber(atpTag.GetSeqNumber());
 
     // ack包的源地址和目的地址与发送的包相反
     Ipv4Address ackSource = ipHeader.GetDestination();
     Ipv4Address ackDestination = ipHeader.GetSource();
-    uint16_t ackSourcePort = atpHeader.GetDestinationPort();
-    uint16_t ackDestinationPort = atpHeader.GetSourcePort();
+    uint16_t ackSourcePort = atpTag.GetDestinationPort();
+    uint16_t ackDestinationPort = atpTag.GetSourcePort();
 
-    ackHeader.SetSourcePort(ackSourcePort);
-    ackHeader.SetDestinationPort(ackDestinationPort);
+    ackTag.SetSourcePort(ackSourcePort);
+    ackTag.SetDestinationPort(ackDestinationPort);
 
-    Ptr<Packet> ackPacket = Create<Packet>();
-    ackPacket->AddHeader(ackHeader);
+    Ptr<Packet> ackPacket = Create<Packet>(10); 
+    ackPacket->AddPacketTag(ackTag);
 
     NS_LOG_INFO("Send ack packet from " << ackSource << ":" << ackSourcePort
                 << " to " << ackDestination << ":" << ackDestinationPort 
@@ -659,18 +667,18 @@ ATPSocket::SendAck(ATPHeader atpHeader, Ipv4Header ipHeader)
 
 
 void
-ATPSocket::SendMultiAck(const ATPHeader& atpHeader, const Ipv4Header& ipHeader)
+ATPSocket::SendMultiAck(const ATPTag& atpTag, const Ipv4Header& ipHeader)
 {
-    NS_LOG_FUNCTION(this << atpHeader << ipHeader);
+    NS_LOG_FUNCTION(this << atpTag << ipHeader);
     NS_LOG_INFO("Send multi-ack");
     
     // 获取该作业的地址映射
-    const auto& addrList = GetAddressMapping(atpHeader.GetJobId());
+    const auto& addrList = GetAddressMapping(atpTag.GetJobId());
     
     // 检查是否有地址映射
     if (addrList.empty()) {
         NS_LOG_WARN("No address mapping found for job ID " << 
-                    static_cast<uint32_t>(atpHeader.GetJobId()));
+                    static_cast<uint32_t>(atpTag.GetJobId()));
         return;
     }
     
@@ -678,27 +686,28 @@ ATPSocket::SendMultiAck(const ATPHeader& atpHeader, const Ipv4Header& ipHeader)
     for (const auto& addrPair : addrList)
     {
         // 创建ACK头部
-        ATPHeader ackHeader;
-        ackHeader.SetPacketType(ATPHeader::ACK);
-        ackHeader.SetJobId(atpHeader.GetJobId());
-        ackHeader.SetAckNumber(atpHeader.GetSeqNumber());
+        ATPTag ackTag;
+        ackTag.SetPacketType(ATPTag::ACK);
+        ackTag.SetEcn(atpTag.GetEcn());
+        ackTag.SetJobId(atpTag.GetJobId());
+        ackTag.SetAckNumber(atpTag.GetSeqNumber());
         
         // ack包的源地址和目的地址与发送的包相反
         Ipv4Address ackSource = ipHeader.GetDestination();
-        uint16_t ackSourcePort = atpHeader.GetDestinationPort();
+        uint16_t ackSourcePort = atpTag.GetDestinationPort();
 
         Ipv4Address ackDestination = addrPair.first;
         uint16_t ackDestinationPort = addrPair.second;
 
         // 设置端口
-        ackHeader.SetSourcePort(ackSourcePort);
-        ackHeader.SetDestinationPort(ackDestinationPort);
+        ackTag.SetSourcePort(ackSourcePort);
+        ackTag.SetDestinationPort(ackDestinationPort);
         
-        Ptr<Packet> ackPacket = Create<Packet>();
-        ackPacket->AddHeader(ackHeader);
+        Ptr<Packet> ackPacket = Create<Packet>(10);
+        ackPacket->AddPacketTag(ackTag);
         
         NS_LOG_INFO("Send multi-ack from " << ipHeader.GetDestination() 
-                    << ":" << atpHeader.GetDestinationPort()
+                    << ":" << atpTag.GetDestinationPort()
                     << " to " << addrPair.first << ":" << addrPair.second
                     << " at time " << Simulator::Now().GetSeconds() << "s");
         
@@ -724,29 +733,48 @@ ATPSocket::ForwardUp(Ptr<Packet> packet,
     }
 
     // 判断是否是ack数据包，可能ackNumber不对，应该选别的。
-    ATPHeader atpHeader;
-    packet->PeekHeader(atpHeader);
-    if (atpHeader.GetPacketType() == ATPHeader::ACK)
+    ATPTag atpTag;
+    bool hasATPTag = packet->PeekPacketTag(atpTag);
+
+    if (!hasATPTag)
+    {
+        NS_LOG_INFO("ATP socket receive a normal packet, not ATP packet");
+        m_dropTrace(packet);
+        return;
+    }
+    
+    if (atpTag.GetPacketType() == ATPTag::ACK)
     {
         // 处理ack包
-        ReceiveAck(atpHeader);
+        ReceiveAck(atpTag);
+        return;
     }
-    else
+
+    // 如果接收缓冲区有足够的空间，将数据包放入接收队列
+    if ((m_rxAvailable + packet->GetSize()) <= m_rxBufferSize)
     {
-        // 如果接收缓冲区有足够的空间，将数据包放入接收队列
-        if ((m_rxAvailable + packet->GetSize()) <= m_rxBufferSize)
+        Address address = InetSocketAddress(header.GetSource(), port);
+
+        packet->RemovePacketTag(atpTag);
+        m_rxBuffer.emplace(packet, address);
+        m_rxAvailable += packet->GetSize();
+
+        // 通知应用层有数据可读
+        NS_LOG_INFO("NotifyDataRecv");
+        NotifyDataRecv();
+
+        // 发送ack包
+        if (atpTag.GetPacketType() == ATPTag::AGG)
         {
-            Address address = InetSocketAddress(header.GetSource(), port);
-
-            packet->RemoveHeader(atpHeader);
-            m_rxBuffer.emplace(packet, address);
-            m_rxAvailable += packet->GetSize();
-            // 通知应用层有数据可读
-            NS_LOG_INFO("NotifyDataRecv");
-            NotifyDataRecv();
-
-            // 发送ack包
-            SendMultiAck(atpHeader, header);
+            NS_LOG_INFO("This is a aggregated packet");
+            SendMultiAck(atpTag, header);
+            return;
+        }
+        else if (atpTag.GetPacketType() == ATPTag::DATA)
+        {
+            NS_LOG_INFO("This is a DATA packet, has not been aggregated");
+            SendAck(atpTag, header);
+            return;
         }
         else
         {

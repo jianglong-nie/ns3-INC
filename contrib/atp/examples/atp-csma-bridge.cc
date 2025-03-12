@@ -60,16 +60,19 @@ main(int argc, char* argv[])
     cwndStream_n0_job1.open("n0-job1-cwnd.txt", std::ofstream::out | std::ofstream::trunc);
     cwndStream_n1_job1.open("n1-job1-cwnd.txt", std::ofstream::out | std::ofstream::trunc);
 
-    LogComponentEnable("ATPBulkSendApplication", LOG_LEVEL_ALL);
-    LogComponentEnable("ATPPacketSink", LOG_LEVEL_ALL);
-    LogComponentEnable("ATPSocket", LOG_LEVEL_ALL);
+    //LogComponentEnable("ATPBulkSendApplication", LOG_LEVEL_ALL);
+    //LogComponentEnable("ATPPacketSink", LOG_LEVEL_ALL);
+    //LogComponentEnable("ATPSocket", LOG_LEVEL_ALL);
     //LogComponentEnable("ATPBridgeNetDevice", LOG_LEVEL_ALL);
-    LogComponentEnable("ATPTxBuffer", LOG_LEVEL_ALL);
-    LogComponentEnable("ATPL4Protocol", LOG_LEVEL_ALL);
-    LogComponentEnable("ATPPacketSink", LOG_LEVEL_ALL);
+    //LogComponentEnable("ATPTxBuffer", LOG_LEVEL_ALL);
+    //LogComponentEnable("ATPL4Protocol", LOG_LEVEL_ALL);
+    //LogComponentEnable("Ipv4L3Protocol", LOG_LEVEL_ALL);
+    //LogComponentEnable("Ipv4Interface", LOG_LEVEL_ALL);
+    //LogComponentEnable("ATPTag", LOG_LEVEL_ALL);
 
     bool tracing = false;
-    uint64_t maxBytes = 2480;
+    uint64_t maxBytes = 2048;
+    Time stopTime = Seconds(80.0);
 
     //
     // Explicitly create the nodes required by the topology (shown above).
@@ -124,7 +127,7 @@ main(int argc, char* argv[])
     sinkApp->SetSocket(sinkATPSocket);
     sinkApp->SetAddressPort(sinkAddress, sinkPort);
     sinkApp->SetStartTime(Seconds(0.0));
-    sinkApp->SetStopTime(Seconds(20.0));
+    sinkApp->SetStopTime(stopTime);
 
     sinkATPSocket->Bind(sinkAddress);
     sinkATPSocket->Listen();
@@ -146,7 +149,7 @@ main(int argc, char* argv[])
     n0job1App->Setup(sinkAddress, n0job1_ATPSocket, maxBytes, 1);
     n0job1App->SetEnableATPTag(true);
     n0job1App->SetStartTime(Seconds(1.0));
-    n0job1App->SetStopTime(Seconds(10.0));
+    n0job1App->SetStopTime(stopTime);
 
     n0job1_ATPSocket->SetConnectCallback(MakeCallback(&ATPBulkSendApplication::ConnectionSucceeded, n0job1App),
                                     MakeCallback(&ATPBulkSendApplication::ConnectionFailed, n0job1App));
@@ -159,7 +162,7 @@ main(int argc, char* argv[])
     n1job1App->Setup(sinkAddress, n1job1_ATPSocket, maxBytes, 1);
     n1job1App->SetEnableATPTag(true);
     n1job1App->SetStartTime(Seconds(1.0));
-    n1job1App->SetStopTime(Seconds(10.0));
+    n1job1App->SetStopTime(stopTime);
 
     n1job1_ATPSocket->SetConnectCallback(MakeCallback(&ATPBulkSendApplication::ConnectionSucceeded, n1job1App),
                                     MakeCallback(&ATPBulkSendApplication::ConnectionFailed, n1job1App));
@@ -207,7 +210,7 @@ main(int argc, char* argv[])
 
     // Now, do the actual simulation.
     NS_LOG_INFO("Run Simulation.");
-    Simulator::Stop(Seconds(20.0));
+    Simulator::Stop(stopTime + Seconds(1.0));
     Simulator::Run();
 
     Simulator::Destroy();

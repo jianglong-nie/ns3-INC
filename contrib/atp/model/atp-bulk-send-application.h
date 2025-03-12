@@ -9,7 +9,6 @@
 #ifndef ATP_BULK_SEND_APPLICATION_H
 #define ATP_BULK_SEND_APPLICATION_H
 
-#include "atp-header.h"
 #include "atp-tag.h"
 
 #include "ns3/address.h"
@@ -23,7 +22,7 @@ namespace ns3
 
 class Address;
 class Socket;
-class ATPHeader;
+class ATPTag;
 class ATPSocket;
 
 /**
@@ -167,27 +166,13 @@ class ATPBulkSendApplication : public Application
     uint64_t m_maxBytes;                 //!< Limit total number of bytes sent
     uint64_t m_totBytes;                 //!< Total bytes sent so far
     TypeId m_tid;                        //!< The type of protocol to use.
-    uint32_t m_seq{0};                   //!< Sequence
+    uint32_t m_seqNum{0};                //!< Sequence number
     Ptr<Packet> m_unsentPacket;          //!< Variable to cache unsent packet
-    bool m_enableATPHeader{false};       //!< Enable or disable the ATPHeader
     bool m_enableATPTag{false};          //!< Enable or disable the ATPTag
     uint32_t m_jobId{0};                 //!< Job ID
 
     /// Traced Callback: sent packets
     TracedCallback<Ptr<const Packet>> m_txTrace;
-
-    /// Traced Callback: retransmitted packets
-    /*TracedCallback<Ptr<const Packet>,
-                   const TcpHeader&,
-                   const Address&,
-                   const Address&,
-                   Ptr<const TcpSocketBase>>
-        m_retransmissionTrace;*/
-
-    /// Callback for tracing the packet Tx events, includes source, destination,  the packet sent,
-    /// and header
-    TracedCallback<Ptr<const Packet>, const Address&, const Address&, const ATPHeader&>
-        m_txTraceWithATPHeader;
 };
 
 } // namespace ns3

@@ -24,7 +24,7 @@ ATPTxBuffer::ATPTxBuffer()
   : m_bufferSize(0), // 需要socket进行设置，比较重要
     m_bufferDataSize(0),
     m_packetNum(0),
-    m_cwnd(2),              //!< 拥塞窗口大小
+    m_cwnd(1),              //!< 拥塞窗口大小
     m_nextExpectedAckId(1)    //!< 期望收到的下一个ACK的ID
 {
   NS_LOG_FUNCTION(this);
@@ -55,12 +55,14 @@ void
 ATPTxBuffer::SetMaxBufferSize(uint32_t size)
 {
     m_bufferSize = size;
+    m_maxCwnd = m_bufferSize / 248;
 }
 
 void
 ATPTxBuffer::SetCwnd(uint32_t cwnd)
 {
     m_cwnd = cwnd;
+    m_cwndTrace = m_cwnd;
 }
 
 uint32_t
@@ -121,7 +123,7 @@ ATPTxBuffer::IsOrderedAck(uint32_t packetId) const
 }
 
 void
-ATPTxBuffer::ProcessOrderedAck(uint32_t packetId)
+ATPTxBuffer::ProcessOrderedAck(uint32_t packetId, bool isEcn)
 {
     NS_LOG_FUNCTION(this << packetId);
     
@@ -136,7 +138,19 @@ ATPTxBuffer::ProcessOrderedAck(uint32_t packetId)
         m_nextExpectedAckId++;
 
         // 按序到达，窗口长度增加1
-        m_cwnd++;
+        if (isEcn)
+        {
+            m_cwnd = (m_cwnd == 1) ? 1 : m_cwnd / 2;
+        }
+        else
+        {
+            // 窗口的长度增加1，但是小于m_maxCwnd
+            m_cwnd++;
+            if (m_cwnd > m_maxCwnd)
+            {
+                m_cwnd = m_maxCwnd;
+            }
+        }
         m_cwndTrace = m_cwnd;
     }
     else{  
@@ -156,7 +170,7 @@ ATPTxBuffer::ProcessUnorderedAck(uint32_t packetId)
     else{
         // 乱序到达，窗口长度减半
         // 需要重传数据包，将m_sentQueue中数据包都重传一遍
-        m_cwnd = (m_cwnd / 2 > 0) ? m_cwnd / 2 : 1;
+        m_cwnd = (m_cwnd == 1) ? 1 : m_cwnd / 2;
         m_cwndTrace = m_cwnd;
     }
     
