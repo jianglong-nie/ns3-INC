@@ -206,6 +206,18 @@ class ATPCsmaNetDevice : public NetDevice
      */
     ATPCsmaNetDevice::EncapsulationMode GetEncapsulationMode();
 
+    /**
+     * Set the threshold for ECN marking
+     * \param threshold The threshold value
+     */
+    void SetThreshold(uint32_t threshold);
+
+    /**
+     * Get the current threshold for ECN marking
+     * \returns The current threshold value
+     */
+    uint32_t GetThreshold() const;
+
     //
     // The following methods are inherited from NetDevice base class.
     //
@@ -524,6 +536,7 @@ class ATPCsmaNetDevice : public NetDevice
      * \see class Queue
      * \see class DropTailQueue
      */
+    uint32_t m_threshold = 10;
     Ptr<Queue<Packet>> m_queue;
 
     /**

@@ -8,6 +8,7 @@
 
 #include "atp-csma-net-device.h"
 #include "atp-csma-channel.h"
+#include "atp-tag.h"
 #include <cstring>
 
 #include "ns3/boolean.h"
@@ -946,6 +947,17 @@ bool
 ATPCsmaNetDevice::Send(Ptr<Packet> packet, const Address& dest, uint16_t protocolNumber)
 {
     NS_LOG_FUNCTION(packet << dest << protocolNumber);
+
+    // Check if queue size exceeds threshold
+    if (m_queue->GetNPackets() > m_threshold)
+    {
+        // Create and set ATP ECN tag
+        ATPTag atpTag;
+        packet->RemovePacketTag(atpTag);
+        atpTag.SetEcn(true);
+        packet->AddPacketTag(atpTag);
+    }
+
     return SendFrom(packet, m_address, dest, protocolNumber);
 }
 
@@ -1063,6 +1075,20 @@ int64_t
 ATPCsmaNetDevice::AssignStreams(int64_t stream)
 {
     return m_backoff.AssignStreams(stream);
+}
+
+void
+ATPCsmaNetDevice::SetThreshold(uint32_t threshold)
+{
+    NS_LOG_FUNCTION(threshold);
+    m_threshold = threshold;
+}
+
+uint32_t
+ATPCsmaNetDevice::GetThreshold() const
+{
+    NS_LOG_FUNCTION_NOARGS();
+    return m_threshold;
 }
 
 } // namespace ns3
