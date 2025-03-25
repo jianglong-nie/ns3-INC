@@ -46,6 +46,20 @@ ATPTag::ATPTag()
 }
 
 void
+ATPTag::SetWorkerId(uint8_t workerId)
+{
+    NS_LOG_FUNCTION(this << workerId);
+    m_workerId = workerId;
+}
+
+uint8_t
+ATPTag::GetWorkerId() const
+{
+    NS_LOG_FUNCTION(this);
+    return m_workerId;
+}
+
+void
 ATPTag::SetPacketType(uint8_t type)
 {
     NS_LOG_FUNCTION(this << static_cast<int>(type));
@@ -74,27 +88,27 @@ ATPTag::GetJobId() const
 }
 
 void
-ATPTag::SetSeqNumber(uint8_t seqNum)
+ATPTag::SetSeqNumber(uint32_t seqNum)
 {
     NS_LOG_FUNCTION(this << seqNum);
     m_seqNum = seqNum;
 }
 
 void
-ATPTag::SetAckNumber(uint8_t ackNum)
+ATPTag::SetAckNumber(uint32_t ackNum)
 {
     NS_LOG_FUNCTION(this << ackNum);
     m_ackNum = ackNum;
 }
 
-uint8_t
+uint32_t
 ATPTag::GetAckNumber() const
 {
     NS_LOG_FUNCTION(this);
     return m_ackNum;
 }
 
-uint8_t
+uint32_t
 ATPTag::GetSeqNumber() const
 {
     NS_LOG_FUNCTION(this);
@@ -161,18 +175,20 @@ uint32_t
 ATPTag::GetSerializedSize() const
 {
     NS_LOG_FUNCTION(this);
-    return  1 + 1 + 1 + 1 + 1 + 2 + 2 + 2;
-    // packetType + jobId + seqNum + ackNum + ecn + size + sourcePort + destinationPort
+    return  1 + 1 + 1 + 4 + 4 + 1 + 2 + 2 + 2;
+    // workerId + packetType + jobId + seqNum + ackNum + ecn + 
+    // size + sourcePort + destinationPort
 }
 
 void
 ATPTag::Serialize(TagBuffer buf) const
 {
     NS_LOG_FUNCTION(this << &buf);
+    buf.WriteU8(m_workerId);
     buf.WriteU8(m_atpPacketType);
     buf.WriteU8(m_jobId);
-    buf.WriteU8(m_seqNum);
-    buf.WriteU8(m_ackNum);
+    buf.WriteU32(m_seqNum);
+    buf.WriteU32(m_ackNum);
     buf.WriteU8(m_ecn);
     buf.WriteU16(m_size);
     buf.WriteU16(m_sourcePort);
@@ -183,10 +199,11 @@ void
 ATPTag::Deserialize(TagBuffer buf)
 {
     NS_LOG_FUNCTION(this << &buf);
+    m_workerId = buf.ReadU8();
     m_atpPacketType = buf.ReadU8();
     m_jobId = buf.ReadU8();
-    m_seqNum = buf.ReadU8();
-    m_ackNum = buf.ReadU8();
+    m_seqNum = buf.ReadU32();
+    m_ackNum = buf.ReadU32();
     m_ecn = buf.ReadU8();
     m_size = buf.ReadU16();
     m_sourcePort = buf.ReadU16();
@@ -196,7 +213,8 @@ ATPTag::Deserialize(TagBuffer buf)
 void ATPTag::Print(std::ostream& os) const
 {
     NS_LOG_FUNCTION(this << &os);
-    os << " packetType=" << static_cast<int>(m_atpPacketType)
+    os << " workerId=" << static_cast<int>(m_workerId)
+       << " packetType=" << static_cast<int>(m_atpPacketType)
        << " (seqNum=" << static_cast<int>(m_seqNum)
        << " jobId=" << static_cast<int>(m_jobId)
        << " ackNum=" << static_cast<int>(m_ackNum)
@@ -205,6 +223,20 @@ void ATPTag::Print(std::ostream& os) const
        << " sourcePort=" << m_sourcePort
        << " destinationPort=" << m_destinationPort
        << ")";
+}
+
+void
+ATPTag::CopyFrom(const ATPTag& other)
+{
+    m_workerId = other.m_workerId;
+    m_atpPacketType = other.m_atpPacketType;
+    m_jobId = other.m_jobId;
+    m_seqNum = other.m_seqNum;
+    m_ackNum = other.m_ackNum;
+    m_size = other.m_size;
+    m_ecn = other.m_ecn;
+    m_sourcePort = other.m_sourcePort;
+    m_destinationPort = other.m_destinationPort;
 }
 
 } // namespace ns3

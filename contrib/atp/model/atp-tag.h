@@ -28,6 +28,9 @@ class ATPTag : public Tag
 
     ATPTag();
 
+    void SetWorkerId(uint8_t workerId);
+    uint8_t GetWorkerId() const;
+
     // 定义数据包类型
     // 使用具有描述性名称的常量，但底层仍然是 uint8_t
     static constexpr uint8_t UNKNOWN = 0;
@@ -41,11 +44,11 @@ class ATPTag : public Tag
     void SetJobId(uint8_t jobId);
     uint8_t GetJobId() const;
 
-    void SetSeqNumber(uint8_t seqNum);
-    uint8_t GetSeqNumber() const;
+    void SetSeqNumber(uint32_t seqNum);
+    uint32_t GetSeqNumber() const;
 
-    void SetAckNumber(uint8_t ackNum);
-    uint8_t GetAckNumber() const;
+    void SetAckNumber(uint32_t ackNum);
+    uint32_t GetAckNumber() const;
 
     void SetSize(uint16_t size);
     uint16_t GetSize() const;
@@ -72,11 +75,15 @@ class ATPTag : public Tag
         return os;
     }
 
+    // 添加复制函数
+    void CopyFrom(const ATPTag& other);
+
   private:
+    uint8_t m_workerId{0};
     uint8_t m_atpPacketType{0};
     uint8_t m_jobId{0};    //!< Job ID
-    uint8_t m_seqNum{0};   //!< Sequence number
-    uint8_t m_ackNum{0};   //!< Ack number
+    uint32_t m_seqNum{0};   //!< Sequence number
+    uint32_t m_ackNum{0};   //!< Ack number
     uint8_t m_ecn{0};      //!< ECN
     uint16_t m_size{0};    //!< Size of data to send each time
     uint16_t m_sourcePort{0xfffd};      //!< Source port

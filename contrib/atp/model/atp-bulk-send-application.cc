@@ -252,6 +252,7 @@ ATPBulkSendApplication::SendData(const Address& from, const Address& to)
             ATPTag atpTag;
             atpTag.SetPacketType(ATPTag::DATA);
             atpTag.SetJobId(m_jobId);
+            atpTag.SetWorkerId(m_workerId);
             m_seqNum++; // 序列号自增，初值0，加加后从1开始计数
             atpTag.SetSeqNumber(m_seqNum);
             atpTag.SetAckNumber(m_seqNum);
@@ -359,6 +360,20 @@ ATPBulkSendApplication::GetJobId() const
 {
     NS_LOG_FUNCTION(this);
     return m_jobId;
+}
+
+void
+ATPBulkSendApplication::SetWorkerId(uint8_t workerId)
+{
+    NS_LOG_FUNCTION(this << workerId);
+    m_workerId = workerId;
+}
+
+uint8_t
+ATPBulkSendApplication::GetWorkerId() const
+{
+    NS_LOG_FUNCTION(this);
+    return m_workerId;
 }
 
 void

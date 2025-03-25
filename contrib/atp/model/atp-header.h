@@ -57,7 +57,7 @@ class ATPHeader : public Header
     uint8_t GetJobId() const;
 
     // 序列号
-    void SetSeqNumber(uint8_t seqNum);
+    void SetSeqNumber(uint32_t seqNum);
     uint8_t GetSeqNumber() const;
 
     // 确认号
@@ -100,7 +100,7 @@ class ATPHeader : public Header
 
     uint8_t m_packetType{UNKNOWN};      //!< 数据包类型
     uint8_t m_jobId{0};                 //!< 任务ID
-    uint8_t m_seqNum{0};                //!< 序列号
+    uint32_t m_seqNum{0};                //!< 序列号
     uint8_t m_ackNum{0};                //!< 确认号
     uint16_t m_size{0};                 //!< 数据大小
     uint16_t m_windowSize{0xffff};      //!< 接收窗口大小, 默认最大为65535

@@ -119,23 +119,14 @@ class ATPBulkSendApplication : public Application
      */
     void SetSocket(Ptr<Socket> socket);
 
-    /**
-     * \brief Set the enable ATPTag attribute.
-     *
-     * This function sets the enable ATPTag attribute.
-     *
-     * \param enableATPTag true if ATPTag should be enabled, false otherwise
-     */
     void SetEnableATPTag(bool enableATPTag);
-
-    /**
-     * \brief Get the enable ATPTag attribute.
-     *
-     * This function gets the enable ATPTag attribute.
-     *
-     * \return true if ATPTag is enabled, false otherwise
-     */
     bool GetEnableATPTag() const;
+
+    void SetJobId(uint32_t jobId);
+    uint32_t GetJobId() const;
+
+    void SetWorkerId(uint8_t workerId);
+    uint8_t GetWorkerId() const;
 
     void ConnectionSucceeded(Ptr<Socket> socket);
     void ConnectionFailed(Ptr<Socket> socket);
@@ -155,9 +146,6 @@ class ATPBulkSendApplication : public Application
      */
     void SendData(const Address& from, const Address& to);
 
-    void SetJobId(uint32_t jobId);
-    uint32_t GetJobId() const;
-
     Ptr<Socket> m_socket;                //!< Associated socket
     Address m_peer;                      //!< Peer address
     Address m_local;                     //!< Local address to bind to
@@ -170,6 +158,7 @@ class ATPBulkSendApplication : public Application
     Ptr<Packet> m_unsentPacket;          //!< Variable to cache unsent packet
     bool m_enableATPTag{false};          //!< Enable or disable the ATPTag
     uint32_t m_jobId{0};                 //!< Job ID
+    uint8_t m_workerId{0};               //!< Worker ID
 
     /// Traced Callback: sent packets
     TracedCallback<Ptr<const Packet>> m_txTrace;

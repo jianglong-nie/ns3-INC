@@ -4,6 +4,7 @@
 #include "ns3/ip-l4-protocol.h"
 #include "ns3/packet.h"
 #include "ns3/ptr.h"
+#include "ns3/traced-callback.h"
 
 #include <stdint.h>
 #include <unordered_map>
@@ -94,6 +95,11 @@ class ATPL4Protocol : public IpL4Protocol
     uint64_t m_socketIndex{0}; //!< Index of the next socket to be created
     IpL4Protocol::DownTargetCallback m_downTarget;   //!< Callback to send packets over IPv4
     IpL4Protocol::DownTargetCallback6 m_downTarget6; //!< Callback to send packets over IPv6
+
+    /**
+     * Trace source for packets dropped at L4 layer
+     */
+    TracedCallback<Ptr<const Packet>, const char *> m_dropTrace;
 };
 
 } // namespace ns3

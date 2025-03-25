@@ -84,7 +84,7 @@ ATPHeader::GetJobId() const
 }
 
 void
-ATPHeader::SetSeqNumber(uint8_t seqNum)
+ATPHeader::SetSeqNumber(uint32_t seqNum)
 {
     NS_LOG_FUNCTION(this << seqNum);
     m_seqNum = seqNum;

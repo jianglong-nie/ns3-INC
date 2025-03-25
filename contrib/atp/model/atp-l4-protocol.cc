@@ -38,7 +38,11 @@ ATPL4Protocol::GetTypeId()
                          "The list of sockets associated to this protocol.",
                          ObjectMapValue(),
                          MakeObjectMapAccessor(&ATPL4Protocol::m_sockets),
-                         MakeObjectMapChecker<ATPSocket>());
+                         MakeObjectMapChecker<ATPSocket>())
+            .AddTraceSource("Drop",
+                           "Trace source indicating a packet has been dropped at L4 layer",
+                           MakeTraceSourceAccessor(&ATPL4Protocol::m_dropTrace),
+                           "ns3::Packet::TracedCallback");
     return tid;
 }
 
@@ -209,6 +213,7 @@ ATPL4Protocol::Receive(Ptr<Packet> packet, const Ipv4Header& header, Ptr<Ipv4Int
     if (endPoints.empty())
     {
         NS_LOG_LOGIC("RX_ENDPOINT_UNREACH");
+        m_dropTrace(packet, "No matching endpoint");
         return IpL4Protocol::RX_ENDPOINT_UNREACH;
     }
 
@@ -243,10 +248,10 @@ ATPL4Protocol::Send(Ptr<Packet> packet,
     NS_LOG_FUNCTION(this << packet << saddr << daddr << sport << dport);
 
     // 1. 提取packet中的atptag
-    ATPTag tag;
+    ATPTag initTag;
     
-    bool hasATPTag = packet->PeekPacketTag(tag);
-    packet->RemovePacketTag(tag);
+    bool hasATPTag = packet->PeekPacketTag(initTag);
+    packet->RemovePacketTag(initTag);
 
     if (hasATPTag)
     {
@@ -254,18 +259,15 @@ ATPL4Protocol::Send(Ptr<Packet> packet,
         NS_LOG_INFO("Get ATPTag from packet");
         ATPTag atpTag;
 
-        atpTag.SetPacketType(tag.GetPacketType());
-        atpTag.SetJobId(tag.GetJobId());
-        atpTag.SetSeqNumber(tag.GetSeqNumber());
-        atpTag.SetAckNumber(tag.GetAckNumber());
-        atpTag.SetSize(tag.GetSize());
-
+        // 使用CopyFrom函数复制所有值
+        atpTag.CopyFrom(initTag);
+        
+        // 更新端口信息
         atpTag.SetSourcePort(sport);
         atpTag.SetDestinationPort(dport);
 
         packet->AddPacketTag(atpTag);
 
-        NS_LOG_INFO("Send packet with ATPTag PacketType=" << static_cast<int>(atpTag.GetPacketType()));
         // 发送数据包
         m_downTarget(packet, saddr, daddr, PROT_NUMBER, nullptr);
     }
@@ -274,8 +276,6 @@ ATPL4Protocol::Send(Ptr<Packet> packet,
         NS_LOG_INFO("No ATPTag in packet");
         m_downTarget(packet, saddr, daddr, PROT_NUMBER, nullptr);
     }
-
-    
 }
 
 void
@@ -290,10 +290,10 @@ ATPL4Protocol::Send(Ptr<Packet> packet,
 
     
     // 1. 提取packet中的atptag
-    ATPTag tag;
+    ATPTag initTag;
 
-    bool hasATPTag = packet->PeekPacketTag(tag);
-    packet->RemovePacketTag(tag);
+    bool hasATPTag = packet->PeekPacketTag(initTag);
+    packet->RemovePacketTag(initTag);
 
     if (hasATPTag)
     {
@@ -301,19 +301,14 @@ ATPL4Protocol::Send(Ptr<Packet> packet,
         NS_LOG_INFO("Get ATPTag from packet");
         ATPTag atpTag;
         
-        atpTag.SetPacketType(tag.GetPacketType());
-        atpTag.SetJobId(tag.GetJobId());
-        atpTag.SetSeqNumber(tag.GetSeqNumber());
-        atpTag.SetAckNumber(tag.GetAckNumber());
-        atpTag.SetSize(tag.GetSize());
+        // 使用CopyFrom函数复制所有值
+        atpTag.CopyFrom(initTag);
 
+        // 更新端口信息
         atpTag.SetDestinationPort(dport);
         atpTag.SetSourcePort(sport);
         
-        
         packet->AddPacketTag(atpTag);
-
-        NS_LOG_INFO("Send packet with ATPTag PacketType=" << static_cast<int>(atpTag.GetPacketType()));
 
         // 4. 发送数据包
         m_downTarget(packet, saddr, daddr, PROT_NUMBER, route);
