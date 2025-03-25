@@ -27,69 +27,6 @@ NS_LOG_COMPONENT_DEFINE("ATPBridgeNetDevice");
 
 NS_OBJECT_ENSURE_REGISTERED(ATPBridgeNetDevice);
 
-Aggregator::Aggregator()
-    : m_jobId(0),
-      m_seqNum(0),
-      m_count(0),
-      m_faninDegree(2),
-      m_packet(nullptr)
-{
-    NS_LOG_FUNCTION(this);
-}
-
-Aggregator::~Aggregator()
-{
-    NS_LOG_FUNCTION(this);
-    
-    // 如果m_packet不为空，释放它
-    if (m_packet != nullptr)
-    {
-        m_packet = nullptr;
-    }
-}
-
-void
-Aggregator::SetFaninDegree(uint32_t faninDegree)
-{
-    NS_LOG_FUNCTION(this << faninDegree);
-    m_faninDegree = faninDegree;
-}
-
-bool
-Aggregator::AddPacket(Ptr<const Packet> packet)
-{
-    NS_LOG_FUNCTION(this << packet);
-
-    m_packet = packet->Copy();
-
-    m_count++;
-    
-    // 检查是否完成聚合
-    if (m_count >= m_faninDegree)
-    {   
-        return true;  // 聚合完成，可以取出数据包了
-    }
-    
-    return false;  // 聚合未完成，继续收集数据包
-}
-
-Ptr<Packet>
-Aggregator::GetAggregatedPacket() const
-{
-    NS_LOG_FUNCTION(this);
-    return m_packet;
-}
-
-void
-Aggregator::Reset()
-{
-    NS_LOG_FUNCTION(this);
-    m_jobId = 0;
-    m_seqNum = 0;
-    m_count = 0;
-    m_packet = nullptr;
-}
-
 TypeId
 ATPBridgeNetDevice::GetTypeId()
 {
@@ -122,8 +59,7 @@ ATPBridgeNetDevice::ATPBridgeNetDevice()
 {
     NS_LOG_FUNCTION_NOARGS();
     m_channel = CreateObject<ATPBridgeChannel>();
-
-    // 预先创建固定数量的聚合器
+    // 初始化聚合器vector的大小
     m_aggregators.resize(MAX_AGGREGATORS);
 }
 
@@ -191,18 +127,93 @@ ATPBridgeNetDevice::ReceiveFromDevice(Ptr<NetDevice> incomingPort,
         {
             ATPTag atpTag;
             bool hasATPTag = packet->PeekPacketTag(atpTag);
-            if (hasATPTag)
+            if (hasATPTag && atpTag.GetPacketType() == ATPTag::DATA)
             {
-                NS_LOG_INFO("ATP packet, store and aggregate");
                 AggregatePacket(incomingPort, packet, protocol, src48, dst48);
             }
             else
             {
-                NS_LOG_INFO("Non-ATP packet, forward directly");
                 ForwardUnicast(incomingPort, packet, protocol, src48, dst48);
             }
         }
         break;
+    }
+}
+
+void
+ATPBridgeNetDevice::AggregatePacket(Ptr<NetDevice> incomingPort,
+                                Ptr<const Packet> packet,
+                                uint16_t protocol,
+                                Mac48Address src,
+                                Mac48Address dst)
+{
+    NS_LOG_FUNCTION_NOARGS();
+
+    ATPTag atpTag;
+    packet->PeekPacketTag(atpTag);
+
+    if (atpTag.GetSeqNumber() == 173) {
+        NS_LOG_INFO("ATP 173 DATA packet, store and aggregate");
+        NS_LOG_INFO("workerId: " << static_cast<int>(atpTag.GetWorkerId()));
+    }
+    if (atpTag.GetSeqNumber() == 174) {
+        NS_LOG_INFO("ATP 174 DATA packet, store and aggregate");
+        NS_LOG_INFO("workerId: " << static_cast<int>(atpTag.GetWorkerId()));
+    }
+
+    NS_LOG_INFO("ATP DATA packet with jobId = " << static_cast<int>(atpTag.GetJobId())
+                                               << ", seqNum = " << static_cast<int>(atpTag.GetSeqNumber())
+                                               << ", workerId = " << static_cast<int>(atpTag.GetWorkerId()));
+
+    // 使用Aggregator类的哈希函数计算索引
+    std::size_t index = Aggregator::HashToIndex(atpTag.GetJobId(), atpTag.GetSeqNumber(), MAX_AGGREGATORS);
+    
+    // 获取对应的聚合器
+    Aggregator& aggregator = m_aggregators[index];
+
+    // 如果聚合器为空，或者jobId和seqNum都匹配
+    if (aggregator.IsEmpty() || 
+        (aggregator.m_jobId == atpTag.GetJobId() && 
+         aggregator.m_seqNum == atpTag.GetSeqNumber()))
+    {
+        // 如果是空的，初始化jobId和seqNum
+        if (aggregator.IsEmpty()) {
+            aggregator.m_jobId = atpTag.GetJobId();
+            aggregator.m_seqNum = atpTag.GetSeqNumber();
+        }
+
+        // 添加数据包到聚合器
+        bool aggregationComplete = aggregator.AddPacket(packet);
+        if (aggregationComplete)
+        {
+            NS_LOG_INFO("Aggregation complete for jobId " << static_cast<int>(atpTag.GetJobId())
+                        << " seqNum " << static_cast<int>(atpTag.GetSeqNumber()));
+            
+            // 获取聚合后的数据包
+            Ptr<Packet> aggregatedPacket = aggregator.GetAggregatedPacket();
+
+            ATPTag atpTag;
+            aggregatedPacket->PeekPacketTag(atpTag);
+            aggregatedPacket->RemovePacketTag(atpTag);
+
+            // 改成聚合完成标志AGG
+            atpTag.SetPacketType(ATPTag::AGG);
+            aggregatedPacket->AddPacketTag(atpTag);
+
+            // 重置聚合器
+            aggregator.Reset();
+            
+            // 转发聚合后的数据包，使用原始的MAC地址
+            ForwardUnicast(incomingPort, aggregatedPacket, protocol, src, dst);
+        }
+    }
+    else
+    {
+        // 如果哈希冲突且不匹配，直接转发
+        NS_LOG_WARN("ATPBridgeNetDevice: Hash collision at jobId " << static_cast<int>(atpTag.GetJobId())
+                                                                   << " seqNum " << static_cast<int>(atpTag.GetSeqNumber())
+                                                                   << ", forwarding packet directly");
+        ForwardUnicast(incomingPort, packet, protocol, src, dst);
     }
 }
 
@@ -541,112 +552,6 @@ ATPBridgeNetDevice::GetMulticast(Ipv6Address addr) const
 {
     NS_LOG_FUNCTION(this << addr);
     return Mac48Address::GetMulticast(addr);
-}
-
-void
-ATPBridgeNetDevice::AggregatePacket(Ptr<NetDevice> incomingPort,
-                                Ptr<const Packet> packet,
-                                uint16_t protocol,
-                                Mac48Address src,
-                                Mac48Address dst)
-{
-    NS_LOG_FUNCTION_NOARGS();
-    NS_LOG_DEBUG("AggregatePacket (incomingPort="
-                 << incomingPort->GetInstanceTypeId().GetName() << ", packet=" << packet
-                 << ", protocol=" << protocol << ", src=" << src << ", dst=" << dst << ")");
-
-    ATPTag atpTag;
-    packet->PeekPacketTag(atpTag);
-    NS_LOG_INFO("Packet has ATP tag with type: " << static_cast<int>(atpTag.GetPacketType()));
-
-    if (atpTag.GetPacketType() != ATPTag::DATA)
-    {
-        NS_LOG_INFO("Non-DATA ATP packet (type " << static_cast<int>(atpTag.GetPacketType()) 
-                    << "), forward directly");
-        ForwardUnicast(incomingPort, packet, protocol, src, dst);
-        return;
-    }
-
-    // 计算正在使用的聚合器数量
-    uint32_t usedAggregators = 0;
-    for (const auto& agg : m_aggregators)
-    {
-        if (!agg.IsEmpty())
-        {
-            usedAggregators++;
-        }
-    }
-
-    // 设置ECN标记
-    m_ecn = (usedAggregators >= m_threshold) ? 1 : 0;
-
-    uint8_t jobId = atpTag.GetJobId();
-    uint8_t seqNum = atpTag.GetSeqNumber();
-
-    // 查找匹配的聚合器
-    Aggregator* matchedAgg = nullptr;
-    for (auto& agg : m_aggregators)
-    {
-        if (!agg.IsEmpty() && agg.m_jobId == jobId && agg.m_seqNum == seqNum)
-        {
-            matchedAgg = &agg;
-            break;
-        }
-    }
-
-    // 如果没找到匹配的，寻找空闲的聚合器
-    if (!matchedAgg)
-    {
-        for (auto& agg : m_aggregators)
-        {
-            if (agg.IsEmpty())
-            {
-                matchedAgg = &agg;
-                matchedAgg->m_jobId = jobId;
-                matchedAgg->m_seqNum = seqNum;
-                NS_LOG_INFO("Using empty aggregator for jobId " << static_cast<int>(jobId) 
-                           << " seqNum " << static_cast<int>(seqNum));
-                break;
-            }
-        }
-    }
-
-    // 如果没有可用的聚合器，直接转发
-    if (!matchedAgg)
-    {
-        NS_LOG_WARN("No available aggregator, forwarding packet directly");
-        // 设置ECN标记
-        ForwardUnicast(incomingPort, packet, protocol, src, dst);
-        return;
-    }
-
-    // 添加数据包到聚合器
-    bool aggregationComplete = matchedAgg->AddPacket(packet);
-    if (aggregationComplete)
-    {
-        NS_LOG_INFO("Aggregation complete for jobId " << static_cast<int>(jobId)
-                                           << " seqNum " << static_cast<int>(seqNum));
-        // 获取聚合后的数据包
-        Ptr<Packet> aggregatedPacket = matchedAgg->GetAggregatedPacket();
-
-        ATPTag atpTag;
-        aggregatedPacket->PeekPacketTag(atpTag);
-        aggregatedPacket->RemovePacketTag(atpTag);
-
-        // 保留原有标志，添加聚合完成标志AGG
-        atpTag.SetPacketType(ATPTag::AGG);
-        atpTag.SetEcn(m_ecn);
-        aggregatedPacket->AddPacketTag(atpTag);
-
-        NS_LOG_INFO("Forward aggregated packet with ATPTag PacketType=" << static_cast<int>(atpTag.GetPacketType()));
-
-        // 转发聚合后的数据包，使用原始的MAC地址
-        ForwardUnicast(incomingPort, aggregatedPacket, protocol, src, dst);
-
-        // 重置聚合器
-        matchedAgg->Reset();
-        m_ecn = 0;
-    }
 }
 
 } // namespace ns3

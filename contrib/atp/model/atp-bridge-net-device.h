@@ -8,12 +8,14 @@
 
 #include "atp-bridge-channel.h"
 #include "atp-tag.h"
+#include "atp-aggregator.h"
 
 #include "ns3/mac48-address.h"
 #include "ns3/net-device.h"
 #include "ns3/nstime.h"
 
 #include <map>
+#include <vector>
 #include <utility>
 #include <stdint.h>
 #include <string>
@@ -23,35 +25,13 @@
  * \ingroup bridge
  * ns3::BridgeNetDevice declaration.
  */
-
-namespace ns3
-{
+namespace ns3 {
 
 class Node;
 
 /**
  * \brief 用于在bridge中存储和聚合数据包的buffer类
  */
-class Aggregator
-{
-public:
-    Aggregator();
-    ~Aggregator();
-
-    void SetFaninDegree(uint32_t faninDegree);
-
-    bool AddPacket(Ptr<const Packet> packet);
-    Ptr<Packet> GetAggregatedPacket() const;
-
-    uint8_t m_jobId = 0;
-    uint8_t m_seqNum = 0;
-    uint32_t m_count = 0;
-    uint32_t m_faninDegree = 2;
-    Ptr<Packet> m_packet;   //!< 存储的数据包
-
-    bool IsEmpty() const {return m_count == 0;};
-    void Reset();
-};
 
 /**
  * \defgroup bridge Bridge Network Device
@@ -87,7 +67,7 @@ public:
  */
 class ATPBridgeNetDevice : public NetDevice
 {
-  public:
+public:
     /**
      * \brief Get the type ID.
      * \return the object TypeId
@@ -158,7 +138,7 @@ class ATPBridgeNetDevice : public NetDevice
     bool SupportsSendFrom() const override;
     Address GetMulticast(Ipv6Address addr) const override;
 
-  protected:
+protected:
     void DoDispose() override;
 
     /**
@@ -233,7 +213,7 @@ class ATPBridgeNetDevice : public NetDevice
                         Mac48Address src,
                         Mac48Address dst);
 
-  private:
+private:
     NetDevice::ReceiveCallback m_rxCallback;               //!< receive callback
     NetDevice::PromiscReceiveCallback m_promiscRxCallback; //!< promiscuous receive callback
 
@@ -258,10 +238,8 @@ class ATPBridgeNetDevice : public NetDevice
     uint16_t m_mtu;                                    //!< MTU of the bridged NetDevice
     bool m_enableLearning;                             //!< true if the bridge will learn the node status
 
-    static const uint32_t MAX_AGGREGATORS = 50; //!< 最大聚合器数量
-    uint8_t m_ecn{0};                              //!< ECN
-    uint32_t m_threshold{8};                    //!< 聚合阈值
-    std::vector<Aggregator> m_aggregators;         //!< 聚合器列表,直接存储值而不是指针
+    uint32_t MAX_AGGREGATORS = 1024;
+    std::vector<Aggregator> m_aggregators;
 };
 
 } // namespace ns3
