@@ -103,6 +103,17 @@ ATPPacketSink::GetTotalRx() const
     return m_totalRx;
 }
 
+uint64_t
+ATPPacketSink::GetTotalRxJob(uint8_t jobId) const
+{
+    NS_LOG_FUNCTION(this << static_cast<uint32_t>(jobId));
+    auto it = m_jobRx.find(jobId);
+    if (it != m_jobRx.end()) {
+        return it->second;
+    }
+    return 0;
+}
+
 Ptr<Socket>
 ATPPacketSink::GetListeningSocket() const
 {
@@ -209,7 +220,23 @@ ATPPacketSink::HandleRead(Ptr<Socket> socket)
         { // EOF
             break;
         }
+
+        // Get ATP tag to identify job
+        ATPTag atpTag;
+        bool found = packet->PeekPacketTag(atpTag);
+        
+        // Update total bytes received
         m_totalRx += packet->GetSize();
+        
+        // Update job-specific bytes received
+        if (found) {
+            uint8_t jobId = atpTag.GetJobId();
+            m_jobRx[jobId] += packet->GetSize();
+            NS_LOG_INFO("Job " << static_cast<uint32_t>(jobId) 
+                       << " received " << packet->GetSize() 
+                       << " bytes, total: " << m_jobRx[jobId]);
+        }
+
         if (InetSocketAddress::IsMatchingType(from))
         {
             NS_LOG_INFO("At time " << Simulator::Now().As(Time::S) << " packet sink received "

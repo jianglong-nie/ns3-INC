@@ -10,6 +10,7 @@
 #define ATP_PACKET_SINK_H
 
 #include "ns3/seq-ts-size-header.h"
+#include "atp-tag.h"
 
 #include "ns3/address.h"
 #include "ns3/application.h"
@@ -89,6 +90,13 @@ class ATPPacketSink : public Application
      * \return list of pointers to accepted sockets
      */
     std::list<Ptr<Socket>> GetAcceptedSockets() const;
+
+    /**
+     * \brief Get the total bytes received for a specific job
+     * \param jobId The job ID
+     * \return The total bytes received for the specified job
+     */
+    uint64_t GetTotalRxJob(uint8_t jobId) const;
 
     /**
      * TracedCallback signature for a reception with addresses and SeqTsSizeHeader
@@ -190,6 +198,8 @@ class ATPPacketSink : public Application
     TypeId m_tid;         //!< Protocol TypeId
 
     bool m_enableSeqTsSizeHeader{false}; //!< Enable or disable the export of SeqTsSize header
+
+    std::unordered_map<uint8_t, uint64_t> m_jobRx; //!< Bytes received per job
 
     /// Traced Callback: received packets, source address.
     TracedCallback<Ptr<const Packet>, const Address&> m_rxTrace;
