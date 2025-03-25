@@ -37,6 +37,8 @@ set(source_files
     model/atp-csma-channel.cc
     model/atp-csma-net-device.cc
     helper/atp-csma-helper.cc
+
+    model/atp-aggregator.cc
 )
 
 set(header_files
@@ -66,6 +68,8 @@ set(header_files
     model/atp-csma-channel.h
     model/atp-csma-net-device.h
     helper/atp-csma-helper.h
+
+    model/atp-aggregator.h
 )
 
 build_lib(

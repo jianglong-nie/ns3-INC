@@ -20,26 +20,53 @@
 #include "ns3/core-module.h"
 #include "ns3/network-module.h"
 #include "ns3/internet-module.h"
+#include "ns3/point-to-point-module.h"
 #include "ns3/applications-module.h"
-//#include "ns3/packet-sink.h"
-#include "ns3/atp-module.h" // atp module
-#include "ns3/csma-module.h"
 #include "ns3/bridge-module.h"
-#include "ns3/tcp-congestion-ops.h"
-#include "ns3/atp-csma-helper.h"
-#include "ns3/atp-csma-channel.h"
-#include "ns3/atp-csma-net-device.h"
-
+#include "ns3/csma-module.h"
+#include "ns3/atp-module.h"
+#include "ns3/atp-l4-protocol.h"
+#include "ns3/atp-socket.h"
+#include "ns3/atp-socket-factory.h"
+#include "ns3/traced-callback.h"
+#include "ns3/log.h"
 #include <fstream>
 #include <string>
 #include <iostream>
 
 using namespace ns3;
 
-NS_LOG_COMPONENT_DEFINE("ATPBulkCsmaExample");
+NS_LOG_COMPONENT_DEFINE("ATP-Single-Job");
 
+// 拥塞窗口跟踪，写入txt文件
 std::ofstream cwndStream_n0_job1;
 std::ofstream cwndStream_n1_job1;
+
+// PacketSink端接收到的job1和job2的字节数
+uint64_t lastTimeJob1Bytes = 0;
+uint64_t lastTimeJob2Bytes = 0;
+
+std::ofstream SinkBytesStream_job1;
+
+// 记录接收端收到的总字节数
+static void
+Measurement(Ptr<ATPPacketSink> sink)
+{
+    Time now = Simulator::Now();
+
+    uint64_t currentTimeJob1Bytes = sink->GetTotalRxJob(1);  // job1
+        
+    // 100ms内接收到的字节数
+    uint64_t ReceivedJob1BytesPer100ms = currentTimeJob1Bytes - lastTimeJob1Bytes;
+
+    // 记录总字节数和本100ms内接收的字节数
+    SinkBytesStream_job1 << now.GetSeconds() << "\t" << currentTimeJob1Bytes << "\t" << ReceivedJob1BytesPer100ms << std::endl;
+    
+    lastTimeJob1Bytes = currentTimeJob1Bytes;
+                            
+    // 调度下一个测量
+    Simulator::Schedule(MilliSeconds(100), &Measurement, sink);
+}
 
 static void
 CwndChange_n0_job1(uint32_t oldCwnd, uint32_t newCwnd)
@@ -57,22 +84,14 @@ int
 main(int argc, char* argv[])
 {
     // 在程序开始时打开文件流，使用trunc模式清空文件
-    cwndStream_n0_job1.open("n0-job1-cwnd.txt", std::ofstream::out | std::ofstream::trunc);
-    cwndStream_n1_job1.open("n1-job1-cwnd.txt", std::ofstream::out | std::ofstream::trunc);
-
-    //LogComponentEnable("ATPBulkSendApplication", LOG_LEVEL_ALL);
-    //LogComponentEnable("ATPPacketSink", LOG_LEVEL_ALL);
-    //LogComponentEnable("ATPSocket", LOG_LEVEL_ALL);
-    //LogComponentEnable("ATPBridgeNetDevice", LOG_LEVEL_ALL);
-    //LogComponentEnable("ATPTxBuffer", LOG_LEVEL_ALL);
-    //LogComponentEnable("ATPL4Protocol", LOG_LEVEL_ALL);
-    //LogComponentEnable("Ipv4L3Protocol", LOG_LEVEL_ALL);
-    //LogComponentEnable("Ipv4Interface", LOG_LEVEL_ALL);
-    //LogComponentEnable("ATPTag", LOG_LEVEL_ALL);
-
-    bool tracing = false;
-    uint64_t maxBytes = 2048;
-    Time stopTime = Seconds(80.0);
+    cwndStream_n0_job1.open("atp-result/trace-single-job/n0-job1-cwnd-single-job.txt", std::ofstream::out | std::ofstream::trunc);
+    cwndStream_n1_job1.open("atp-result/trace-single-job/n1-job1-cwnd-single-job.txt", std::ofstream::out | std::ofstream::trunc);
+    SinkBytesStream_job1.open("atp-result/trace-single-job/n0-job1-sinkBytes-single-job.txt", std::ofstream::out | std::ofstream::trunc);
+    
+    // 设置最大发送字节数
+    uint64_t maxBytes = 0;
+    // 设置停止时间
+    Time stopTime = Seconds(10.0);
 
     //
     // Explicitly create the nodes required by the topology (shown above).
@@ -87,7 +106,7 @@ main(int argc, char* argv[])
     NS_LOG_INFO("Build Topology");
     ATPCsmaHelper csma;
     csma.SetChannelAttribute("DataRate", StringValue("5Mbps"));
-    csma.SetChannelAttribute("Delay", StringValue("2ms"));
+    csma.SetChannelAttribute("Delay", StringValue("2us"));
 
     NetDeviceContainer nodesDevices;
     NetDeviceContainer switchDevices;
@@ -97,6 +116,20 @@ main(int argc, char* argv[])
         NetDeviceContainer link = csma.Install(NodeContainer(nodes.Get(i), csmaSwitch));
         nodesDevices.Add(link.Get(0));
         switchDevices.Add(link.Get(1));
+    }
+
+    // 设置switchDevices的m_threshold
+    for (int i = 0; i < 3; i++)
+    {
+        Ptr<ATPCsmaNetDevice> device = DynamicCast<ATPCsmaNetDevice>(switchDevices.Get(i));
+        device->SetThreshold(40);
+    }
+
+    // 设置nodesDevices的m_threshold
+    for (int i = 0; i < 3; i++)
+    {
+        Ptr<ATPCsmaNetDevice> device = DynamicCast<ATPCsmaNetDevice>(nodesDevices.Get(i));
+        device->SetThreshold(2000);
     }
 
     // Create the bridge netdevice, which will do the packet switching
@@ -150,6 +183,7 @@ main(int argc, char* argv[])
     n0job1App->SetEnableATPTag(true);
     n0job1App->SetStartTime(Seconds(1.0));
     n0job1App->SetStopTime(stopTime);
+    n0job1App->SetWorkerId(0b00000001);
 
     n0job1_ATPSocket->SetConnectCallback(MakeCallback(&ATPBulkSendApplication::ConnectionSucceeded, n0job1App),
                                     MakeCallback(&ATPBulkSendApplication::ConnectionFailed, n0job1App));
@@ -163,6 +197,7 @@ main(int argc, char* argv[])
     n1job1App->SetEnableATPTag(true);
     n1job1App->SetStartTime(Seconds(1.0));
     n1job1App->SetStopTime(stopTime);
+    n1job1App->SetWorkerId(0b00000010);
 
     n1job1_ATPSocket->SetConnectCallback(MakeCallback(&ATPBulkSendApplication::ConnectionSucceeded, n1job1App),
                                     MakeCallback(&ATPBulkSendApplication::ConnectionFailed, n1job1App));
@@ -200,13 +235,8 @@ main(int argc, char* argv[])
     sinkATPSocket->AddAddressMapping(1, n1Addr, senderPort);
     NS_LOG_INFO("Address mapping completed");
 
-    // Set up tracing if enabled
-    if (tracing)
-    {
-        AsciiTraceHelper ascii;
-        csma.EnableAsciiAll(ascii.CreateFileStream("atp-bulk-csma.tr"));
-        csma.EnablePcapAll("atp-bulk-csma", false);
-    }
+    // 开始测量
+    Simulator::Schedule(MilliSeconds(100), &Measurement, sinkApp);
 
     // Now, do the actual simulation.
     NS_LOG_INFO("Run Simulation.");
@@ -218,7 +248,7 @@ main(int argc, char* argv[])
 
     cwndStream_n0_job1.close();
     cwndStream_n1_job1.close();
-
+    SinkBytesStream_job1.close();
     std::cout << "Total Bytes Received: " << sinkApp->GetTotalRx() << std::endl;
 
     return 0;
