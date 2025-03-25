@@ -60,16 +60,17 @@ ATPSocket::ATPSocket()
     m_initCwnd = 1;
 
     m_allowBroadcast = false;
-    m_txBufferSize = 24800; 
-    m_rxBufferSize = 24800;
+    m_txBufferSize = 9920;
+    m_rxBufferSize = 9920;
     m_txAvailable = m_txBufferSize;
-    m_rxAvailable = 0;
+    m_rxAvailable = m_rxBufferSize;
 
     m_txBuffer = CreateObject<ATPTxBuffer>();
     m_txBuffer->SetMaxBufferSize(m_txBufferSize); // 设置发送缓冲区最大容量
     m_txBuffer->SetCwnd(m_initCwnd);
     // m_rxBuffer已经定义了
 
+    m_aggregators.resize(MAX_AGGREGATORS);
 }
 
 ATPSocket::~ATPSocket()
@@ -428,7 +429,7 @@ ATPSocket::RecvFrom(uint32_t maxSize, uint32_t flags, Address& fromAddress)
     if (p->GetSize() <= maxSize)
     {
         m_rxBuffer.pop();
-        m_rxAvailable -= p->GetSize();
+        m_rxAvailable += p->GetSize();
     }
     else
     {
@@ -492,17 +493,49 @@ ATPSocket::SendWindowData()
 {
     NS_LOG_FUNCTION(this);
     // 获取窗口信息
+    uint32_t leftBound = m_txBuffer->GetCwndLeftBound();
     uint32_t cwnd = m_txBuffer->GetCwnd();
-    
-    // 发送窗口内的数据
-    for (uint32_t i = 0; i < cwnd; i++)
-    {
+    uint32_t pendingId = m_txBuffer->GetPendingFrontPacketId();
+
+    NS_LOG_INFO("SendWindowData - Time: " << Simulator::Now().GetSeconds() 
+                << " leftBound: " << leftBound 
+                << " cwnd: " << cwnd 
+                << " pendingFrontId: " << pendingId);
+
+    // 当cwnd为1时的特殊处理
+    if (cwnd == 1) {
+        NS_LOG_INFO("Special handling for cwnd=1");
+        // 确保在窗口范围内发送，并且不会过于激进
+        if (pendingId <= leftBound + cwnd) {
+            Ptr<Packet> packet = m_txBuffer->SendPacket();
+            if (packet == nullptr) {
+                NS_LOG_INFO("No packet to send in cwnd=1 case");
+                return;
+            }
+            NS_LOG_INFO("Sending packet in cwnd=1 case");
+            DoSend(packet);
+            
+            // 添加随机延迟，避免一个流占用所有资源
+            /*
+            if (!m_sendWindowDataEvent.IsPending()) {
+                Time delay = MilliSeconds(10 + (rand() % 20)); // 10-30ms的随机延迟
+                m_sendWindowDataEvent = Simulator::Schedule(delay,
+                                                        &ATPSocket::SendWindowData,
+                                                        this);
+            }
+            */
+        }
+        return;
+    }
+
+    // 发送一个窗口内的数据
+    while (m_txBuffer->GetPendingFrontPacketId() <= leftBound + cwnd) {
         Ptr<Packet> packet = m_txBuffer->SendPacket();
         if (packet == nullptr) {
-            NS_LOG_INFO("ATPSocket tx buffer is empty, no packet to send");
+            NS_LOG_INFO("No more packets to send in window");
             break;
         }
-        // 发送数据包
+        NS_LOG_INFO("Sending packet in window");
         DoSend(packet);
     }
 }
@@ -597,7 +630,18 @@ ATPSocket::Retransmit()
 {
     NS_LOG_FUNCTION(this);
     NS_LOG_INFO("Retransmit at time " << Simulator::Now().GetSeconds() << "s");
-    // 重传数据包
+
+    while (m_txBuffer->HasPacketToRetransmit()) {
+        Ptr<Packet> packet = m_txBuffer->RetransmitPacket();
+        DoSend(packet);
+    }
+}
+
+void
+ATPSocket::ResetEcnTimer()
+{
+    NS_LOG_FUNCTION(this);
+    m_ecnTimerRunning = false;
 }
 
 void
@@ -610,9 +654,21 @@ ATPSocket::ReceiveAck(ATPTag atpTag)
     // 判断收到的ack是否按序到达
     if (m_txBuffer->IsOrderedAck(atpTag.GetAckNumber()))
     {
-        bool isEcn = (atpTag.GetEcn() == 1);
         // 处理按序到达的ack
-        m_txBuffer->ProcessOrderedAck(atpTag.GetAckNumber(), isEcn);
+        m_txBuffer->ProcessOrderedAck(atpTag.GetAckNumber());
+        m_txBuffer->UpdateCwndLeftBound(atpTag.GetAckNumber());
+
+        bool isEcn = (atpTag.GetEcn() == 1);
+
+        // ECN标记且计时器未运行时，减半窗口并启动计时器
+        if (isEcn && !m_ecnTimerRunning) {
+            m_txBuffer->ProcessCongestion(true);
+            m_ecnTimerEvent = Simulator::Schedule(MilliSeconds(50), &ATPSocket::ResetEcnTimer, this);
+            m_ecnTimerRunning = true;
+        } 
+        if (!isEcn) {
+            m_txBuffer->ProcessCongestion(false);
+        }
 
         if (!m_sendWindowDataEvent.IsPending()) {
             m_sendWindowDataEvent = Simulator::Schedule(TimeStep(1),
@@ -623,9 +679,16 @@ ATPSocket::ReceiveAck(ATPTag atpTag)
     else
     {
         // 处理乱序到达的ack
-        m_txBuffer->ProcessUnorderedAck(atpTag.GetAckNumber());
-        // 执行重传函数
-        Retransmit();
+        Ptr<Packet> packet = m_txBuffer->ProcessUnorderedAck(atpTag.GetAckNumber());
+        if (packet != nullptr) {
+            if (!m_ecnTimerRunning) {
+                m_txBuffer->ProcessCongestion(true);
+                m_ecnTimerEvent = Simulator::Schedule(Seconds(1), &ATPSocket::ResetEcnTimer, this);
+                m_ecnTimerRunning = true;
+            }
+            // 执行重传函数
+            Retransmit();
+        }
     }
 
     // 通知上层继续发送数据到缓冲区
@@ -717,6 +780,86 @@ ATPSocket::SendMultiAck(const ATPTag& atpTag, const Ipv4Header& ipHeader)
     }
 }
 
+void
+ATPSocket::AggregatePacket(Ptr<Packet> packet, 
+                           Ipv4Header header,
+                           uint16_t port,
+                           Ptr<Ipv4Interface> incomingInterface)
+{
+    NS_LOG_FUNCTION(this << packet << header << port << incomingInterface);
+
+    Address address = InetSocketAddress(header.GetSource(), port);
+
+    // 获取ATPTag
+    ATPTag atpTag;
+    packet->PeekPacketTag(atpTag);
+
+    // 使用Aggregator类的哈希函数计算索引
+    std::size_t index = Aggregator::HashToIndex(atpTag.GetJobId(), atpTag.GetSeqNumber(), MAX_AGGREGATORS);
+    
+    // 获取对应的聚合器
+    Aggregator& aggregator = m_aggregators[index];
+
+    // 如果聚合器为空，或者jobId和seqNum都匹配
+    if (aggregator.IsEmpty() || 
+        (aggregator.m_jobId == atpTag.GetJobId() && 
+         aggregator.m_seqNum == atpTag.GetSeqNumber()))
+    {
+        // 如果是空的，初始化jobId和seqNum
+        if (aggregator.IsEmpty()) {
+            aggregator.m_jobId = atpTag.GetJobId();
+            aggregator.m_seqNum = atpTag.GetSeqNumber();
+            NS_LOG_INFO("Using empty aggregator at index " << index 
+                        << " for jobId " << static_cast<int>(atpTag.GetJobId())
+                        << " seqNum " << static_cast<int>(atpTag.GetSeqNumber()));
+        }
+
+        // 添加数据包到聚合器
+        bool aggregationComplete = aggregator.AddPacket(packet);
+        if (aggregationComplete)
+        {
+            NS_LOG_INFO("ATPSocket: Aggregation complete for jobId " << static_cast<int>(atpTag.GetJobId())
+                        << " seqNum " << static_cast<int>(atpTag.GetSeqNumber()));
+            
+            // 获取聚合后的数据包
+            Ptr<Packet> aggregatedPacket = aggregator.GetAggregatedPacket();
+
+            //ATPTag atpTag;
+            //aggregatedPacket->RemovePacketTag(atpTag);
+
+            // 重置聚合器
+            aggregator.Reset();
+
+            // 将聚合后数据包加入接收缓冲区
+            if ((m_rxAvailable - aggregatedPacket->GetSize()) >= 0)
+            {
+                m_rxBuffer.emplace(aggregatedPacket, address);
+                m_rxAvailable -= aggregatedPacket->GetSize();
+
+                if (!m_sendMultiAckEvent.IsPending()) {
+                    m_sendMultiAckEvent = Simulator::Schedule(TimeStep(1),
+                                                                &ATPSocket::SendMultiAck,
+                                                                this,
+                                                                atpTag,
+                                                                header);
+                }
+                // 通知应用层有数据可读
+                NS_LOG_INFO("NotifyDataRecv");
+                NotifyDataRecv();
+            }
+            else
+            {
+                NS_LOG_WARN("ATPSocket: No receive buffer space available.  Drop.");
+                m_dropTrace(packet);
+            }
+        }
+    }
+    else
+    {
+        NS_LOG_WARN("ATPSocket: Hash collision at index " << index << ", drop the packet");
+        m_dropTrace(packet);
+    }
+}
 
 void
 ATPSocket::ForwardUp(Ptr<Packet> packet, 
@@ -729,6 +872,8 @@ ATPSocket::ForwardUp(Ptr<Packet> packet,
     // 如果接收已关闭，丢弃数据包
     if (m_shutdownRecv)
     {
+        NS_LOG_INFO("Receive is shutdown, drop the packet");
+        m_dropTrace(packet);
         return;
     }
 
@@ -750,37 +895,54 @@ ATPSocket::ForwardUp(Ptr<Packet> packet,
         return;
     }
 
-    // 如果接收缓冲区有足够的空间，将数据包放入接收队列
-    if ((m_rxAvailable + packet->GetSize()) <= m_rxBufferSize)
+    Address address = InetSocketAddress(header.GetSource(), port);
+    
+    // 根据数据包属性，进行不同的处理
+    if (atpTag.GetPacketType() == ATPTag::AGG)
     {
-        Address address = InetSocketAddress(header.GetSource(), port);
+        NS_LOG_INFO("This is a aggregated packet");
 
-        packet->RemovePacketTag(atpTag);
-        m_rxBuffer.emplace(packet, address);
-        m_rxAvailable += packet->GetSize();
+        // 释放m_aggregators中与当前数据包的jobId和seqNum 相等的聚合器
+        std::size_t index = Aggregator::HashToIndex(atpTag.GetJobId(), atpTag.GetSeqNumber(), MAX_AGGREGATORS);
+        Aggregator& aggregator = m_aggregators[index];
 
-        // 通知应用层有数据可读
-        NS_LOG_INFO("NotifyDataRecv");
-        NotifyDataRecv();
-
-        // 发送ack包
-        if (atpTag.GetPacketType() == ATPTag::AGG)
+        if (aggregator.IsEmpty() || 
+            (aggregator.m_jobId == atpTag.GetJobId() && 
+            aggregator.m_seqNum == atpTag.GetSeqNumber()))
         {
-            NS_LOG_INFO("This is a aggregated packet");
-            SendMultiAck(atpTag, header);
-            return;
+            aggregator.Reset();
         }
-        else if (atpTag.GetPacketType() == ATPTag::DATA)
+
+        if ((m_rxAvailable - packet->GetSize()) >= 0)
         {
-            NS_LOG_INFO("This is a DATA packet, has not been aggregated");
-            SendAck(atpTag, header);
-            return;
+            //packet->RemovePacketTag(atpTag);
+            m_rxBuffer.emplace(packet, address);
+            m_rxAvailable -= packet->GetSize();
+
+            if (!m_sendMultiAckEvent.IsPending()) {
+                m_sendMultiAckEvent = Simulator::Schedule(TimeStep(1),
+                                                            &ATPSocket::SendMultiAck,
+                                                            this,
+                                                            atpTag,
+                                                            header);
+            }
+            // 通知应用层有数据可读
+            NS_LOG_INFO("NotifyDataRecv");
+            NotifyDataRecv();
         }
         else
         {
             NS_LOG_WARN("No receive buffer space available.  Drop.");
             m_dropTrace(packet);
         }
+        return;
+    }
+
+    if (atpTag.GetPacketType() == ATPTag::DATA)
+    {
+        NS_LOG_INFO("This is a DATA packet, has not been aggregated");
+        AggregatePacket(packet, header, port, incomingInterface);
+        return;
     }
 }
 

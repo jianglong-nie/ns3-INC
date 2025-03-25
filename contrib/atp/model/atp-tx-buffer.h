@@ -20,13 +20,15 @@ public:
   ATPTxItem() 
     : m_packet(nullptr),
       m_packetId(0),
-      m_acked(false),
       m_lastSentTime(0)
   {}
+  ~ATPTxItem()
+  {
+    m_packet = nullptr;
+  }
 
     Ptr<Packet> m_packet;       //!< 数据包
     uint32_t m_packetId;        //!< 数据包ID
-    bool m_acked;               //!< 是否已确认
     uint32_t m_lastSentTime;    //!< 最后发送时间
 };
 
@@ -84,30 +86,70 @@ class ATPTxBuffer : public Object
      * \param packetId 收到的ACK包ID
      * \return 是否按序
      */
-    void ProcessOrderedAck(uint32_t packetId, bool isEcn); 
+    void ProcessOrderedAck(uint32_t packetId); 
 
     /**
      * \brief 处理乱序ACK
      * \param packetId 收到的ACK包ID
      * \return 是否按序
      */
-    void ProcessUnorderedAck(uint32_t packetId);
+    Ptr<Packet> ProcessUnorderedAck(uint32_t packetId);
 
+    /**
+     * \brief 处理拥塞状态
+     * \param isEcn 是否拥塞
+     */
+    void ProcessCongestion(bool isEcn);
 
-  private:
+    /**
+     * \brief 检查是否需要重传
+     * \return 是否需要重传
+     */
+    bool HasPacketToRetransmit() const;
+
+    /**
+     * \brief 重传数据包
+     */
+    Ptr<Packet> RetransmitPacket();
+
+    /**
+     * \brief 获取已发送队列的第一个数据包ID
+     * \return 数据包ID
+     */
+    uint32_t GetSentPacketId() const;
+
+    /**
+     * \brief 获取待发送队列的第一个数据包ID
+     * \return 数据包ID
+     */
+    uint32_t GetPendingFrontPacketId() const;
+
+    /**
+     * \brief 获取拥塞窗口左边界
+     * \return 拥塞窗口左边界
+     */
+    uint32_t GetCwndLeftBound() const;
+
+    /**
+     * \brief 更新拥塞窗口左边界
+     * \param ackId 收到的ACK包ID
+     */
+    void UpdateCwndLeftBound(uint32_t ackNum);
+
     typedef std::queue<ATPTxItem*> PacketQueue; //!< 数据包队列类型
     
     PacketQueue m_pendingQueue;         //!< 待发送数据队列
     PacketQueue m_sentQueue;            //!< 已发送数据队列
+    PacketQueue m_retxQueue;            //!< 重传数据队列
     uint32_t m_bufferSize;              //!< 最大缓冲区大小
     uint32_t m_bufferDataSize;          //!< 缓冲区内的数据大小
     uint32_t m_packetNum;               //!< 进入缓冲区的数据包总数量
 
     // 窗口管理
-    uint32_t m_maxCwnd{1};            //!< 最大拥塞窗口长度
-    uint32_t m_cwnd{1};                //!< 拥塞窗口长度
-    TracedValue<uint32_t> m_cwndTrace; //!< 拥塞窗口长度
-    uint32_t m_nextExpectedAckId{1};    //!< 期望收到的下一个ACK的ID
+    uint32_t m_maxCwnd{1};              //!< 最大拥塞窗口长度
+    uint32_t m_leftBound{0};            //!< 最小拥塞窗口左边界，左边界之前都是已经发送的数据包
+    uint32_t m_cwnd{1};                 //!< 拥塞窗口长度
+    TracedValue<uint32_t> m_cwndTrace;  //!< 拥塞窗口长度
 };
 
 } // namespace ns3

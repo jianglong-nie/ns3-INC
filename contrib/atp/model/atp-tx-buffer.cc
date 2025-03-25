@@ -24,8 +24,7 @@ ATPTxBuffer::ATPTxBuffer()
   : m_bufferSize(0), // 需要socket进行设置，比较重要
     m_bufferDataSize(0),
     m_packetNum(0),
-    m_cwnd(1),              //!< 拥塞窗口大小
-    m_nextExpectedAckId(1)    //!< 期望收到的下一个ACK的ID
+    m_cwnd(1)              //!< 拥塞窗口大小
 {
   NS_LOG_FUNCTION(this);
 }
@@ -49,13 +48,21 @@ ATPTxBuffer::~ATPTxBuffer()
         m_sentQueue.pop();
         delete item;
     }
+
+    // 清理重传队列
+    while (!m_retxQueue.empty())
+    {
+        ATPTxItem* item = m_retxQueue.front();
+        m_retxQueue.pop();
+        delete item;
+    }
 }
 
 void
 ATPTxBuffer::SetMaxBufferSize(uint32_t size)
 {
     m_bufferSize = size;
-    m_maxCwnd = m_bufferSize / 248;
+    m_maxCwnd = size / 248;
 }
 
 void
@@ -93,6 +100,40 @@ ATPTxBuffer::AddPacket(Ptr<Packet> p)
     return true;
 }
 
+uint32_t
+ATPTxBuffer::GetSentPacketId() const
+{
+    if (m_sentQueue.empty()) {
+        NS_LOG_WARN("GetSentPacketId: m_sentQueue is empty");
+        return 0;
+    }
+
+    return m_sentQueue.front()->m_packetId;
+}
+
+uint32_t
+ATPTxBuffer::GetPendingFrontPacketId() const
+{
+    if (m_pendingQueue.empty()) {
+        NS_LOG_WARN("GetPendingFrontPacketId: m_pendingQueue is empty");
+        return 0;
+    }
+
+    return m_pendingQueue.front()->m_packetId;
+}
+
+uint32_t
+ATPTxBuffer::GetCwndLeftBound() const
+{
+    return m_leftBound;
+}
+
+void
+ATPTxBuffer::UpdateCwndLeftBound(uint32_t ackNum)
+{
+    NS_LOG_FUNCTION(this << ackNum);
+    m_leftBound = ackNum;
+}
 Ptr<Packet>
 ATPTxBuffer::SendPacket()
 {
@@ -119,11 +160,19 @@ ATPTxBuffer::SendPacket()
 bool
 ATPTxBuffer::IsOrderedAck(uint32_t packetId) const
 {
-    return packetId == m_nextExpectedAckId;
+    if (m_sentQueue.empty())
+    {
+        NS_LOG_WARN("IsOrderedAck: m_sentQueue is empty");
+        return false;
+    }
+
+    ATPTxItem* item = m_sentQueue.front();
+    uint32_t nextExpectedAckId = item->m_packetId;
+    return packetId == nextExpectedAckId;
 }
 
 void
-ATPTxBuffer::ProcessOrderedAck(uint32_t packetId, bool isEcn)
+ATPTxBuffer::ProcessOrderedAck(uint32_t packetId)
 {
     NS_LOG_FUNCTION(this << packetId);
     
@@ -133,47 +182,124 @@ ATPTxBuffer::ProcessOrderedAck(uint32_t packetId, bool isEcn)
     {
         m_sentQueue.pop();
         delete item;
-
-        // 更新期望的ACK序号
-        m_nextExpectedAckId++;
-
-        // 按序到达，窗口长度增加1
-        if (isEcn)
-        {
-            m_cwnd = (m_cwnd == 1) ? 1 : m_cwnd / 2;
-        }
-        else
-        {
-            // 窗口的长度增加1，但是小于m_maxCwnd
-            m_cwnd++;
-            if (m_cwnd > m_maxCwnd)
-            {
-                m_cwnd = m_maxCwnd;
-            }
-        }
-        m_cwndTrace = m_cwnd;
     }
     else{  
         NS_LOG_WARN("Ordered ack, but packetId in m_sentQueue is not expected");
     }
 }
 
-void
+Ptr<Packet>
 ATPTxBuffer::ProcessUnorderedAck(uint32_t packetId)
 {
     NS_LOG_FUNCTION(this << packetId);
-    if (packetId < m_nextExpectedAckId)
+
+    if (m_sentQueue.empty()) {
+        NS_LOG_WARN("ProcessUnorderedAck: m_sentQueue is empty");
+        return nullptr;
+    }
+
+    ATPTxItem* item = m_sentQueue.front();
+    uint32_t nextExpectedAckId = item->m_packetId;
+
+    if (packetId > nextExpectedAckId)
     {
-        NS_LOG_WARN("Unordered ack, but packetId is less than m_nextExpectedAckId");
-        return;
+        NS_LOG_WARN("Unordered ack received: " << packetId << ", expected: " << nextExpectedAckId);
+        PacketQueue tempQueue;
+        bool found = false;
+
+        // 遍历队列找出所有需要重传的包
+        while (!m_sentQueue.empty()) {
+            ATPTxItem* front = m_sentQueue.front();
+            m_sentQueue.pop();
+            
+            if (front->m_packetId == packetId) {
+                // 找到匹配的包，删除它
+                delete front;
+                found = true;
+            } else if (front->m_packetId < packetId) {
+                // 创建新的重传项
+                ATPTxItem* retxItem = new ATPTxItem();
+                retxItem->m_packet = front->m_packet->Copy();
+                retxItem->m_packetId = front->m_packetId;
+                retxItem->m_lastSentTime = front->m_lastSentTime;
+                m_retxQueue.push(retxItem);
+            } else {
+                // ID大于收到的ACK ID，保留
+                tempQueue.push(front);
+            }
+        }
+
+        // 将所有保留的包按原顺序放回m_sentQueue
+        while (!tempQueue.empty()) {
+            m_sentQueue.push(tempQueue.front());
+            tempQueue.pop();
+        }
+
+        if (!found) {
+            NS_LOG_WARN("ProcessUnorderedAck: Packet with ID " << packetId << " not found in sent queue");
+        }
     }
     else{
-        // 乱序到达，窗口长度减半
-        // 需要重传数据包，将m_sentQueue中数据包都重传一遍
-        m_cwnd = (m_cwnd == 1) ? 1 : m_cwnd / 2;
-        m_cwndTrace = m_cwnd;
+        NS_LOG_WARN("Unordered ack, but packetId is less than nextExpectedAckId");
     }
+
+    return item->m_packet;
+}
+
+void
+ATPTxBuffer::ProcessCongestion(bool isEcn)
+{
+    NS_LOG_FUNCTION(this << isEcn);
     
+    uint32_t oldCwnd = m_cwnd;
+    if (isEcn)
+    {
+        // 当发生拥塞时，如果当前窗口大于2，则减半；否则只减1
+        if (m_cwnd > 2) {
+            m_cwnd = m_cwnd / 2;
+        } else if (m_cwnd > 1) {
+            m_cwnd--;
+        }
+    }
+    else
+    {
+        // 当没有拥塞时，如果当前窗口为1，则直接加2；否则加1
+        m_cwnd++;
+    }
+
+    if (m_cwnd > m_maxCwnd) {
+        m_cwnd = m_maxCwnd;
+    }
+    m_cwndTrace = m_cwnd;
+    
+    NS_LOG_INFO("ProcessCongestion - Time: " << Simulator::Now().GetSeconds() 
+                << " isEcn: " << isEcn 
+                << " oldCwnd: " << oldCwnd 
+                << " newCwnd: " << m_cwnd);
+}
+
+bool
+ATPTxBuffer::HasPacketToRetransmit() const
+{
+    return !m_retxQueue.empty();
+}
+
+Ptr<Packet>
+ATPTxBuffer::RetransmitPacket()
+{
+    NS_LOG_FUNCTION(this);
+
+    if (m_retxQueue.empty()) {
+        NS_LOG_WARN("RetransmitPacket: m_retxQueue is empty");
+        return nullptr;
+    }
+
+    ATPTxItem* item = m_retxQueue.front();
+    m_retxQueue.pop();
+    Ptr<Packet> packet = item->m_packet;
+    delete item;
+
+    return packet;
 }
 
 } // namespace ns3

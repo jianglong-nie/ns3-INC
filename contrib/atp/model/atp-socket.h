@@ -4,6 +4,7 @@
 #include "atp-tag.h"
 #include "atp-tx-buffer.h"
 #include "atp-congestion-control.h"
+#include "atp-aggregator.h"
 
 #include "ns3/socket.h"
 #include "ns3/traced-callback.h"
@@ -118,9 +119,11 @@ class ATPSocket : public Socket
              检查有效性    管理缓冲区    处理应用数据
              拆除IP头     通知应用层
     */
+    void AggregatePacket(Ptr<Packet> p, Ipv4Header header, uint16_t sport, Ptr<Ipv4Interface> incomingInterface);
     void ForwardUp(Ptr<Packet> p, Ipv4Header header, uint16_t sport, Ptr<Ipv4Interface> incomingInterface);
 
     // 处理ack包
+    void ResetEcnTimer();
     void ReceiveAck(ATPTag atpTag);
     void SendAck(ATPTag atpTag, Ipv4Header ipHeader);
     void SendMultiAck(const ATPTag& atpTag, const Ipv4Header& ipHeader);
@@ -144,8 +147,12 @@ class ATPSocket : public Socket
     uint16_t m_defaultPort;                        //!< 默认目标端口
     TracedCallback<Ptr<const Packet>> m_dropTrace; //!< 丢包跟踪
     
-    EventId m_sendWindowDataEvent{};               //!< micro-delay event to send pending data
+    bool m_ecnTimerRunning = false;                         // 标记ECN计时器是否在运行
+    EventId m_ecnTimerEvent;                        // 添加ECN计时器
+    EventId m_sendWindowDataEvent{};                //!< micro-delay event to send pending data
     EventId m_retxEvent{};                          //!< Retransmission event
+    EventId m_sendAckEvent{};                       //!< Send ACK event
+    EventId m_sendMultiAckEvent{};                  //!< Send ACK event
 
     // 接收发送缓冲区
     bool m_allowBroadcast{false};                   // 是否允许广播
@@ -155,7 +162,9 @@ class ATPSocket : public Socket
     uint32_t m_txAvailable;                         // 发送缓冲区可发送数据量
     Ptr<ATPTxBuffer> m_txBuffer;                    // 发送缓冲区，自定义的类型
     std::queue<std::pair<Ptr<Packet>, Address>> m_rxBuffer; // 接收缓冲区，是个队列
-    
+    uint32_t MAX_AGGREGATORS = 4096;
+    std::vector<Aggregator> m_aggregators;          // 聚合器
+
     // 拥塞控制
     Ptr<ATPCC> m_congestionControl;    // 拥塞控制算法
     uint32_t m_nextSeqNo;              // 下一个序列号
