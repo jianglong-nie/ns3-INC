@@ -26,3 +26,13 @@ build_lib_example(
                       ${libcsma}
                       ${libbridge}
 )
+
+build_lib_example(
+    NAME atp-throughput
+    SOURCE_FILES atp-throughput.cc
+    LIBRARIES_TO_LINK ${libatp}
+                      ${libinternet}
+                      ${libapplications}
+                      ${libcsma}
+                      ${libbridge}
+)

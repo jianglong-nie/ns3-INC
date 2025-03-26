@@ -60,8 +60,8 @@ ATPSocket::ATPSocket()
     m_initCwnd = 1;
 
     m_allowBroadcast = false;
-    m_txBufferSize = 9920;
-    m_rxBufferSize = 9920;
+    m_txBufferSize = 248 * 40;
+    m_rxBufferSize = 248 * 40;
     m_txAvailable = m_txBufferSize;
     m_rxAvailable = m_rxBufferSize;
 

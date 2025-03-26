@@ -536,7 +536,7 @@ class ATPCsmaNetDevice : public NetDevice
      * \see class Queue
      * \see class DropTailQueue
      */
-    uint32_t m_threshold = 10;
+    uint32_t m_threshold = 100000;
     Ptr<Queue<Packet>> m_queue;
 
     /**

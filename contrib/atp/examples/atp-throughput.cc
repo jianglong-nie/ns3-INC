@@ -71,13 +71,13 @@ Measurement(Ptr<ATPPacketSink> sink)
 static void
 CwndChange_n0_job1(uint32_t oldCwnd, uint32_t newCwnd)
 {
-    cwndStream_n0_job1 << Simulator::Now().GetSeconds() << "\t" << newCwnd << std::endl;
+    cwndStream_n0_job1 << Simulator::Now().GetMicroSeconds() << "\t" << newCwnd << std::endl;
 }
 
 static void
 CwndChange_n1_job1(uint32_t oldCwnd, uint32_t newCwnd)
 {
-    cwndStream_n1_job1 << Simulator::Now().GetSeconds() << "\t" << newCwnd << std::endl;
+    cwndStream_n1_job1 << Simulator::Now().GetMicroSeconds() << "\t" << newCwnd << std::endl;
 }
 
 int
@@ -89,9 +89,9 @@ main(int argc, char* argv[])
     SinkBytesStream_job1.open("atp-result/trace-single-job/n0-job1-sinkBytes-single-job.txt", std::ofstream::out | std::ofstream::trunc);
     
     // 设置最大发送字节数
-    uint64_t maxBytes = 0;
+    uint64_t maxBytes = 248;
     // 设置停止时间
-    Time stopTime = Seconds(1.5);
+    Time stopTime = Seconds(10.0);
 
     //
     // Explicitly create the nodes required by the topology (shown above).
@@ -105,7 +105,7 @@ main(int argc, char* argv[])
 
     NS_LOG_INFO("Build Topology");
     ATPCsmaHelper csma;
-    csma.SetChannelAttribute("DataRate", StringValue("5Gbps"));
+    csma.SetChannelAttribute("DataRate", StringValue("10Mbps"));
     csma.SetChannelAttribute("Delay", StringValue("2us"));
 
     NetDeviceContainer nodesDevices;
@@ -122,7 +122,7 @@ main(int argc, char* argv[])
     for (int i = 0; i < 3; i++)
     {
         Ptr<ATPCsmaNetDevice> device = DynamicCast<ATPCsmaNetDevice>(switchDevices.Get(i));
-        device->SetThreshold(2000);
+        device->SetThreshold(40);
     }
 
     // 设置nodesDevices的m_threshold

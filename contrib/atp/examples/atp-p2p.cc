@@ -34,27 +34,65 @@
 
 using namespace ns3;
 
-NS_LOG_COMPONENT_DEFINE("ATPBulkSendExample");
+NS_LOG_COMPONENT_DEFINE("ATP-P2P");
+
+// 拥塞窗口跟踪，写入txt文件
+std::ofstream cwndStream_n0_job1;
+std::ofstream cwndStream_n1_job1;
+
+// PacketSink端接收到的job1和job2的字节数
+uint64_t lastTimeJob1Bytes = 0;
+uint64_t lastTimeJob2Bytes = 0;
+
+std::ofstream SinkBytesStream_job1;
+
+// 记录接收端收到的总字节数
+static void
+Measurement(Ptr<ATPPacketSink> sink)
+{
+    Time now = Simulator::Now();
+
+    uint64_t currentTimeJob1Bytes = sink->GetTotalRxJob(1);  // job1
+        
+    // 100ms内接收到的字节数
+    uint64_t ReceivedJob1BytesPer100ms = currentTimeJob1Bytes - lastTimeJob1Bytes;
+
+    // 记录总字节数和本100ms内接收的字节数
+    SinkBytesStream_job1 << now.GetSeconds() << "\t" << currentTimeJob1Bytes << "\t" << ReceivedJob1BytesPer100ms << std::endl;
+    
+    lastTimeJob1Bytes = currentTimeJob1Bytes;
+                            
+    // 调度下一个测量
+    Simulator::Schedule(MilliSeconds(100), &Measurement, sink);
+}
+
+static void
+CwndChange_n0_job1(uint32_t oldCwnd, uint32_t newCwnd)
+{
+    cwndStream_n0_job1 << Simulator::Now().GetMicroSeconds() << "\t" << newCwnd << std::endl;
+}
+
+static void
+CwndChange_n1_job1(uint32_t oldCwnd, uint32_t newCwnd)
+{
+    cwndStream_n1_job1 << Simulator::Now().GetMicroSeconds() << "\t" << newCwnd << std::endl;
+}
 
 int
 main(int argc, char* argv[])
 {
-    LogComponentEnable("ATPBulkSendApplication", LOG_LEVEL_ALL);
-    LogComponentEnable("PacketSink", LOG_LEVEL_ALL);
-    LogComponentEnable("ATPSocket", LOG_LEVEL_ALL);
+    // LogComponentEnable("ATPBulkSendApplication", LOG_LEVEL_ALL);
+    // LogComponentEnable("PacketSink", LOG_LEVEL_ALL);
+    // LogComponentEnable("ATPSocket", LOG_LEVEL_ALL);
 
-    bool tracing = false;
-    uint32_t maxBytes = 2000;
-    Time stopTime = Seconds(20.0);
+    // 在程序开始时打开文件流，使用trunc模式清空文件
+    cwndStream_n0_job1.open("atp-result/trace-p2p/n0-job1-cwnd-p2p.txt", std::ofstream::out | std::ofstream::trunc);
+    cwndStream_n1_job1.open("atp-result/trace-p2p/n1-job1-cwnd-p2p.txt", std::ofstream::out | std::ofstream::trunc);
+    SinkBytesStream_job1.open("atp-result/trace-p2p/n0-job1-sinkBytes-p2p.txt", std::ofstream::out | std::ofstream::trunc);
+    
 
-    //
-    // Allow the user to override any of the defaults at
-    // run-time, via command-line arguments
-    //
-    CommandLine cmd(__FILE__);
-    cmd.AddValue("tracing", "Flag to enable/disable tracing", tracing);
-    cmd.AddValue("maxBytes", "Total number of bytes for application to send", maxBytes);
-    cmd.Parse(argc, argv);
+    uint32_t maxBytes = 0;
+    Time stopTime = Seconds(1.5);
 
     //
     // Explicitly create the nodes required by the topology (shown above).
@@ -73,8 +111,8 @@ main(int argc, char* argv[])
     // Explicitly create the point-to-point link required by the topology (shown above).
     //
     PointToPointHelper pointToPoint;
-    pointToPoint.SetDeviceAttribute("DataRate", StringValue("500Kbps"));
-    pointToPoint.SetChannelAttribute("Delay", StringValue("5ms"));
+    pointToPoint.SetDeviceAttribute("DataRate", StringValue("5Gbps"));
+    pointToPoint.SetChannelAttribute("Delay", StringValue("2us"));
 
     NetDeviceContainer d0d2, d1d2, d2d3;
     d0d2 = pointToPoint.Install(n0n2);
@@ -157,10 +195,10 @@ main(int argc, char* argv[])
     n1job1_ATPSocket->Connect(sinkAddress);
 
     // 连接拥塞窗口跟踪
-    // n0job1_ATPSocket->GetTxBuffer()->TraceConnectWithoutContext("cwndTrace",
-    //      MakeCallback(&CwndChange_n0_job1));
-    // n1job1_ATPSocket->GetTxBuffer()->TraceConnectWithoutContext("cwndTrace",
-    //      MakeCallback(&CwndChange_n1_job1));
+    n0job1_ATPSocket->GetTxBuffer()->TraceConnectWithoutContext("cwndTrace",
+         MakeCallback(&CwndChange_n0_job1));
+    n1job1_ATPSocket->GetTxBuffer()->TraceConnectWithoutContext("cwndTrace",
+         MakeCallback(&CwndChange_n1_job1));
 
     // 配置n0job1App
     n0job1App->Setup(sinkAddress, n0job1_ATPSocket, maxBytes, 1);
@@ -177,6 +215,13 @@ main(int argc, char* argv[])
     n1job1App->SetStopTime(stopTime);
     n1job1App->SetWorkerId(0b00000010);
     nodes.Get(1)->AddApplication(n1job1App);
+
+    // 添加地址映射
+    sinkATPSocket->AddAddressMapping(1, i0i2.GetAddress(0), sendPort);
+    sinkATPSocket->AddAddressMapping(1, i1i2.GetAddress(0), sendPort);
+
+    // 开始测量
+    Simulator::Schedule(MilliSeconds(100), &Measurement, sinkApp);
     
     //
     // Now, do the actual simulation.
@@ -187,6 +232,9 @@ main(int argc, char* argv[])
     Simulator::Destroy();
     NS_LOG_INFO("Done.");
 
+    cwndStream_n0_job1.close();
+    cwndStream_n1_job1.close();
+    SinkBytesStream_job1.close();
 
     std::cout << "Total Bytes Received: " << sinkApp->GetTotalRx() << std::endl;
 
