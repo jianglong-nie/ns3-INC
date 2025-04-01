@@ -5,9 +5,11 @@
 #include "ns3/packet.h"
 #include "ns3/ptr.h"
 #include "ns3/traced-callback.h"
+#include "atp-aggregator.h"
 
 #include <stdint.h>
 #include <unordered_map>
+#include <vector>
 
 namespace ns3
 {
@@ -81,6 +83,10 @@ class ATPL4Protocol : public IpL4Protocol
     void SetDownTarget6(IpL4Protocol::DownTargetCallback6 cb) override;
     IpL4Protocol::DownTargetCallback GetDownTarget() const override;
     IpL4Protocol::DownTargetCallback6 GetDownTarget6() const override;
+    
+    void SetEnableAggregation(bool enable);
+    Ptr<Packet> AggregatePacket(Ptr<Packet> packet);
+    Ptr<Packet> AggregateStart(Ptr<Packet> packet);
   
   protected:
     void DoDispose() override;
@@ -95,6 +101,11 @@ class ATPL4Protocol : public IpL4Protocol
     uint64_t m_socketIndex{0}; //!< Index of the next socket to be created
     IpL4Protocol::DownTargetCallback m_downTarget;   //!< Callback to send packets over IPv4
     IpL4Protocol::DownTargetCallback6 m_downTarget6; //!< Callback to send packets over IPv6
+
+    // 聚合器相关
+    bool m_enableAggregation;
+    static const uint32_t MAX_AGGREGATORS = 1024;  //!< Maximum number of aggregators
+    std::vector<Aggregator> m_aggregators;         //!< Vector of aggregators
 
     /**
      * Trace source for packets dropped at L4 layer

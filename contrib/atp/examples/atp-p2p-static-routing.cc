@@ -28,6 +28,7 @@
 #include "ns3/packet-sink.h"
 #include "ns3/point-to-point-module.h"
 #include "ns3/atp-module.h" // atp module
+#include "ns3/ipv4-static-routing-helper.h"
 
 #include <fstream>
 #include <string>
@@ -84,6 +85,7 @@ main(int argc, char* argv[])
     // LogComponentEnable("ATPBulkSendApplication", LOG_LEVEL_ALL);
     // LogComponentEnable("PacketSink", LOG_LEVEL_ALL);
     // LogComponentEnable("ATPSocket", LOG_LEVEL_ALL);
+    LogComponentEnable("ATPL4Protocol", LOG_LEVEL_ALL);
 
     // 在程序开始时打开文件流，使用trunc模式清空文件
     cwndStream_n0_job1.open("atp-result/trace-p2p/n0-job1-cwnd-p2p.txt", std::ofstream::out | std::ofstream::trunc);
@@ -91,7 +93,7 @@ main(int argc, char* argv[])
     SinkBytesStream_job1.open("atp-result/trace-p2p/n0-job1-sinkBytes-p2p.txt", std::ofstream::out | std::ofstream::trunc);
     
 
-    uint32_t maxBytes = 0;
+    uint32_t maxBytes = 248;
     Time stopTime = Seconds(1.5);
 
     //
@@ -130,17 +132,16 @@ main(int argc, char* argv[])
     // We've got the "hardware" in place.  Now we need to add IP addresses.
     //
     NS_LOG_INFO("Assign IP Addresses.");
-    Ipv4AddressHelper ipv4;
-    ipv4.SetBase("10.1.1.0", "255.255.255.0");
-    Ipv4InterfaceContainer i0i2 = ipv4.Assign(d0d2);
+    // 使用ipv4Helper作为地址分配器的名字
+    Ipv4AddressHelper ipv4Helper;
+    ipv4Helper.SetBase("10.1.1.0", "255.255.255.0");
+    Ipv4InterfaceContainer i0i2 = ipv4Helper.Assign(d0d2);
 
-    ipv4.SetBase("10.1.2.0", "255.255.255.0");
-    Ipv4InterfaceContainer i1i2 = ipv4.Assign(d1d2);
+    ipv4Helper.SetBase("10.1.2.0", "255.255.255.0");
+    Ipv4InterfaceContainer i1i2 = ipv4Helper.Assign(d1d2);
 
-    ipv4.SetBase("10.1.3.0", "255.255.255.0");
-    Ipv4InterfaceContainer i2i3 = ipv4.Assign(d2d3);
-
-    Ipv4GlobalRoutingHelper::PopulateRoutingTables();
+    ipv4Helper.SetBase("10.1.3.0", "255.255.255.0");
+    Ipv4InterfaceContainer i2i3 = ipv4Helper.Assign(d2d3);
 
     NS_LOG_INFO("Create Applications.");
 
@@ -219,6 +220,42 @@ main(int argc, char* argv[])
     // 添加地址映射
     sinkATPSocket->AddAddressMapping(1, i0i2.GetAddress(0), sendPort);
     sinkATPSocket->AddAddressMapping(1, i1i2.GetAddress(0), sendPort);
+
+    // 配置静态路由
+    // 获取每个节点的Ipv4对象
+    Ptr<Ipv4> ipv4_n0 = nodes.Get(0)->GetObject<Ipv4>();
+    Ptr<Ipv4> ipv4_n1 = nodes.Get(1)->GetObject<Ipv4>();
+    Ptr<Ipv4> ipv4_n2 = nodes.Get(2)->GetObject<Ipv4>();
+    Ptr<Ipv4> ipv4_n3 = nodes.Get(3)->GetObject<Ipv4>();
+
+    // 获取每个节点的静态路由对象
+    Ipv4StaticRoutingHelper staticRoutingHelper;
+    Ptr<Ipv4StaticRouting> staticRouting_n0 = staticRoutingHelper.GetStaticRouting(ipv4_n0);
+    Ptr<Ipv4StaticRouting> staticRouting_n1 = staticRoutingHelper.GetStaticRouting(ipv4_n1);
+    Ptr<Ipv4StaticRouting> staticRouting_n2 = staticRoutingHelper.GetStaticRouting(ipv4_n2);
+    Ptr<Ipv4StaticRouting> staticRouting_n3 = staticRoutingHelper.GetStaticRouting(ipv4_n3);
+
+    // 配置n0的路由表
+    // n0到n3的路由:通过n2转发
+    staticRouting_n0->AddHostRouteTo(i2i3.GetAddress(1), i0i2.GetAddress(1), 1);
+
+    // 配置n1的路由表  
+    // n1到n3的路由:通过n2转发
+    staticRouting_n1->AddHostRouteTo(i2i3.GetAddress(1), i1i2.GetAddress(1), 1);
+
+    // 配置n2的路由表
+    // n2到n0的路由
+    staticRouting_n2->AddHostRouteTo(i0i2.GetAddress(0), i0i2.GetAddress(0), 1);
+    // n2到n1的路由  
+    staticRouting_n2->AddHostRouteTo(i1i2.GetAddress(0), i1i2.GetAddress(0), 2);
+    // n2到n3的路由
+    staticRouting_n2->AddHostRouteTo(i2i3.GetAddress(1), i2i3.GetAddress(1), 3);
+
+    // 配置n3的路由表
+    // n3到n0的路由:通过n2转发
+    staticRouting_n3->AddHostRouteTo(i0i2.GetAddress(0), i2i3.GetAddress(0), 1);
+    // n3到n1的路由:通过n2转发
+    staticRouting_n3->AddHostRouteTo(i1i2.GetAddress(0), i2i3.GetAddress(0), 1);
 
     // 开始测量
     Simulator::Schedule(MilliSeconds(100), &Measurement, sinkApp);

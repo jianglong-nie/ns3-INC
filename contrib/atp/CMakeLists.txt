@@ -39,6 +39,9 @@ set(source_files
     helper/atp-csma-helper.cc
 
     model/atp-aggregator.cc
+
+    model/atp-static-routing.cc
+    helper/atp-static-routing-helper.cc
 )
 
 set(header_files
@@ -70,6 +73,9 @@ set(header_files
     helper/atp-csma-helper.h
 
     model/atp-aggregator.h
+
+    model/atp-static-routing.h
+    helper/atp-static-routing-helper.h
 )
 
 build_lib(

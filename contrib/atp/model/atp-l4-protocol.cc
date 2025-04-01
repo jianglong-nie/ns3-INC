@@ -2,11 +2,13 @@
 #include "atp-l4-protocol.h"
 #include "atp-socket.h"
 #include "atp-socket-factory.h"
+#include "atp-static-routing.h"
 
 #include "ns3/ipv4-end-point-demux.h"
 #include "ns3/ipv4-end-point.h"
 #include "ns3/ipv4-route.h"
 #include "ns3/ipv4.h"
+#include "ns3/ipv4-routing-protocol.h"
 
 #include "ns3/assert.h"
 #include "ns3/log.h"
@@ -47,9 +49,12 @@ ATPL4Protocol::GetTypeId()
 }
 
 ATPL4Protocol::ATPL4Protocol()
-    : m_endPoints(new Ipv4EndPointDemux())
+    : m_endPoints(new Ipv4EndPointDemux()),
+      m_enableAggregation(false)
 {
     NS_LOG_FUNCTION(this);
+
+    m_aggregators.resize(MAX_AGGREGATORS);
 }
 
 ATPL4Protocol::~ATPL4Protocol()
@@ -190,6 +195,98 @@ ATPL4Protocol::DeAllocate(Ipv4EndPoint* endPoint)
 {
     NS_LOG_FUNCTION(this << endPoint);
     m_endPoints->DeAllocate(endPoint);
+}
+
+void
+ATPL4Protocol::SetEnableAggregation(bool enable)
+{
+    NS_LOG_FUNCTION(this << enable);
+    m_enableAggregation = enable;
+}
+
+Ptr<Packet>
+ATPL4Protocol::AggregatePacket(Ptr<Packet> packet)
+{
+    NS_LOG_FUNCTION(this << packet);
+    
+    ATPTag atpTag;
+    packet->PeekPacketTag(atpTag);
+
+    NS_LOG_INFO("ATP DATA packet with jobId = " << static_cast<int>(atpTag.GetJobId())
+                                               << ", seqNum = " << static_cast<int>(atpTag.GetSeqNumber())
+                                               << ", workerId = " << static_cast<int>(atpTag.GetWorkerId()));
+
+    // 使用Aggregator类的哈希函数计算索引
+    std::size_t index = Aggregator::HashToIndex(atpTag.GetJobId(), atpTag.GetSeqNumber(), MAX_AGGREGATORS);
+    
+    // 获取对应的聚合器
+    Aggregator& aggregator = m_aggregators[index];
+
+    // 如果聚合器为空，或者jobId和seqNum都匹配
+    if (aggregator.IsEmpty() || 
+        (aggregator.m_jobId == atpTag.GetJobId() && 
+         aggregator.m_seqNum == atpTag.GetSeqNumber()))
+    {
+        // 如果是空的，初始化jobId和seqNum
+        if (aggregator.IsEmpty()) {
+            aggregator.m_jobId = atpTag.GetJobId();
+            aggregator.m_seqNum = atpTag.GetSeqNumber();
+        }
+
+        // 添加数据包到聚合器
+        bool aggregationComplete = aggregator.AddPacket(packet->Copy());
+        if (aggregationComplete)
+        {
+            // 聚合完成，发送聚合后的数据包
+            Ptr<Packet> aggregatedPacket = aggregator.GetAggregatedPacket();
+            NS_LOG_INFO("Aggregated packet sent with jobId = " << static_cast<int>(atpTag.GetJobId())
+                                                               << ", seqNum = " << static_cast<int>(atpTag.GetSeqNumber()));
+            
+            ATPTag newTag;
+            aggregatedPacket->PeekPacketTag(newTag);
+            aggregatedPacket->RemovePacketTag(newTag);
+
+            // 改成聚合完成标志AGG
+            newTag.SetPacketType(ATPTag::AGG);
+            aggregatedPacket->AddPacketTag(newTag);
+
+            // 重置聚合器
+            aggregator.Reset();
+
+            return aggregatedPacket;
+        }
+        else
+        {
+            return nullptr;
+        }
+    }
+    return packet;
+}
+
+Ptr<Packet>
+ATPL4Protocol::AggregateStart(Ptr<Packet> packet)
+{
+    NS_LOG_FUNCTION(this << packet);
+
+    ATPTag atpTag;
+    bool hasATPTag = packet->PeekPacketTag(atpTag);
+    Ptr<Packet> aggregatedPacket = nullptr;
+
+    if (hasATPTag && atpTag.GetPacketType() == ATPTag::DATA)
+    {
+        aggregatedPacket = AggregatePacket(packet->Copy());
+
+        if (aggregatedPacket == nullptr)
+        {
+            NS_LOG_INFO("Packet is waiting for aggregation.");
+        }
+    }
+    else
+    {
+        aggregatedPacket = packet->Copy();
+    }
+
+    return aggregatedPacket;
 }
 
 // 需要做相关修改
