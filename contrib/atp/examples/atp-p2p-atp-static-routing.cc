@@ -91,8 +91,8 @@ main(int argc, char* argv[])
     SinkBytesStream_job1.open("atp-result/trace-p2p/n0-job1-sinkBytes-p2p.txt", std::ofstream::out | std::ofstream::trunc);
     
 
-    uint32_t maxBytes = 0;
-    Time stopTime = Seconds(1.5);
+    uint32_t maxBytes = 2480000;
+    Time stopTime = Seconds(1.21);
 
     //
     // Explicitly create the nodes required by the topology (shown above).
@@ -118,6 +118,10 @@ main(int argc, char* argv[])
     d0d2 = pointToPoint.Install(n0n2);
     d1d2 = pointToPoint.Install(n1n2);
     d2d3 = pointToPoint.Install(n2n3);
+
+    // 设置n2上与n2连接部分的队列阈值
+    Ptr<PointToPointNetDevice> n2Device = DynamicCast<PointToPointNetDevice>(d2d3.Get(0));
+    n2Device->SetThreshold(1);
 
 
     //
@@ -234,7 +238,7 @@ main(int argc, char* argv[])
     Ptr<ATPStaticRouting> staticRouting_n2 = staticRoutingHelper.GetStaticRouting(ipv4_n2);
     Ptr<ATPStaticRouting> staticRouting_n3 = staticRoutingHelper.GetStaticRouting(ipv4_n3);
 
-    staticRouting_n2->SetEnableAggregation(false);
+    staticRouting_n2->SetEnableAggregation(true);
 
     // 配置n0的路由表
     // n0到n3的路由:通过n2转发

@@ -414,7 +414,7 @@ class ATPStaticRouting : public Ipv4RoutingProtocol
      */
     Ptr<Ipv4> m_ipv4;
     
-    bool m_enableAggregation;
+    bool m_enableAggregation = false;
 };
 
 } // Namespace ns3

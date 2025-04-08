@@ -31,5 +31,6 @@ build_lib(
     model/ppp-header.h
   LIBRARIES_TO_LINK ${libnetwork}
                     ${mpi_libraries}
+                    ${libatp}
   TEST_SOURCES test/point-to-point-test.cc
 )

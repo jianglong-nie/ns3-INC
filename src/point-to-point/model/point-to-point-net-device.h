@@ -187,6 +187,9 @@ class PointToPointNetDevice : public NetDevice
     void SetPromiscReceiveCallback(PromiscReceiveCallback cb) override;
     bool SupportsSendFrom() const override;
 
+    void SetThreshold(uint32_t threshold) { m_threshold = threshold; }
+    uint32_t GetThreshold() const { return m_threshold; }
+
   protected:
     /**
      * \brief Handler for MPI receive event
@@ -446,6 +449,8 @@ class PointToPointNetDevice : public NetDevice
      * \return The corresponding PPP protocol number
      */
     static uint16_t EtherToPpp(uint16_t protocol);
+
+    uint32_t m_threshold = 20000;
 };
 
 } // namespace ns3

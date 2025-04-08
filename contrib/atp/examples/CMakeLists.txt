@@ -64,3 +64,12 @@ build_lib_example(
                       ${libapplications}
                       ${libpoint-to-point}
 )
+
+build_lib_example(
+    NAME atp-p2p-ecn-test
+    SOURCE_FILES atp-p2p-ecn-test.cc
+    LIBRARIES_TO_LINK ${libatp}
+                      ${libinternet}
+                      ${libapplications}
+                      ${libpoint-to-point}
+)

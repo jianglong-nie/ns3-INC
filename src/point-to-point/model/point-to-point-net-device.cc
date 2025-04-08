@@ -19,6 +19,8 @@
 #include "ns3/trace-source-accessor.h"
 #include "ns3/uinteger.h"
 
+#include "ns3/atp-tag.h"
+
 namespace ns3
 {
 
@@ -504,6 +506,19 @@ PointToPointNetDevice::Send(Ptr<Packet> packet, const Address& dest, uint16_t pr
     NS_LOG_FUNCTION(this << packet << dest << protocolNumber);
     NS_LOG_LOGIC("p=" << packet << ", dest=" << &dest);
     NS_LOG_LOGIC("UID is " << packet->GetUid());
+
+    uint32_t queueSize = m_queue->GetNPackets();
+    // 检查队列大小是否超过阈值
+    ATPTag atpTag;
+    bool hasAtpTag = packet->PeekPacketTag(atpTag);
+
+    // Check if queue size exceeds threshold
+    if (hasAtpTag && queueSize >= m_threshold)
+    {
+        packet->RemovePacketTag(atpTag);
+        atpTag.SetEcn(1);
+        packet->AddPacketTag(atpTag);
+    }
 
     //
     // If IsLinkUp() is false it means there is no channel to send any packet

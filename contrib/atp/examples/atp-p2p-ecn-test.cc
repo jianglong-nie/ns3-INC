@@ -3,23 +3,11 @@
  */
 
 // Network topology
+// n0,n1(job1) and m0,m1(job2) to n2, n2 to n3
 //
-//       n0 ----------- n1
-//            500 Kbps
-//             5 ms
-//
-//        n0                
-//         \ 500 Kbps                   
-//          \ 5 ms        500 Kbps 5ms          
-//           n2--------------------------n3             
-//          / 500 Kbps                   
-//         / 5 ms                   
-//        n1                     
-//
-//
-// - Flow from n0 to n1 using BulkSendApplication.
+// - Flow from n0,n1(job1) and m0,m1(job2) to n3 using BulkSendApplication.
 // - Tracing of queues and packet receptions to file "tcp-bulk-send.tr"
-//   and pcap tracing available when tracing is turned on.
+//   and pcap tracing available when tracing is turned on
 
 #include "ns3/applications-module.h"
 #include "ns3/core-module.h"
@@ -32,23 +20,25 @@
 #include <fstream>
 #include <string>
 #include <iostream>
+#include <iomanip>
 
 using namespace ns3;
+using namespace std;
 
 NS_LOG_COMPONENT_DEFINE("ATP-P2P");
 
 // 拥塞窗口跟踪，写入txt文件
-std::ofstream cwndStream_n0_job1;
-std::ofstream cwndStream_n1_job1;
-std::ofstream cwndStream_n0_job2;
-std::ofstream cwndStream_n1_job2;
+ofstream cwndStream_n0_job1;
+ofstream cwndStream_n1_job1;
+ofstream cwndStream_m0_job2;  // 改为m0
+ofstream cwndStream_m1_job2;  // 改为m1
 
 // PacketSink端接收到的job1和job2的字节数
 uint64_t lastTimeJob1Bytes = 0;
 uint64_t lastTimeJob2Bytes = 0;
 
-std::ofstream SinkBytesStream_job1;
-std::ofstream SinkBytesStream_job2;
+ofstream SinkBytesStream_job1;
+ofstream SinkBytesStream_job2;
 
 // 记录接收端收到的总字节数
 static void
@@ -87,15 +77,15 @@ CwndChange_n1_job1(uint32_t oldCwnd, uint32_t newCwnd)
 }
 
 static void
-CwndChange_n0_job2(uint32_t oldCwnd, uint32_t newCwnd)
+CwndChange_m0_job2(uint32_t oldCwnd, uint32_t newCwnd)
 {
-    cwndStream_n0_job2 << Simulator::Now().GetMicroSeconds() << "\t" << newCwnd << std::endl;
+    cwndStream_m0_job2 << Simulator::Now().GetMicroSeconds() << "\t" << newCwnd << std::endl;
 }
 
 static void
-CwndChange_n1_job2(uint32_t oldCwnd, uint32_t newCwnd)
+CwndChange_m1_job2(uint32_t oldCwnd, uint32_t newCwnd)
 {
-    cwndStream_n1_job2 << Simulator::Now().GetMicroSeconds() << "\t" << newCwnd << std::endl;
+    cwndStream_m1_job2 << Simulator::Now().GetMicroSeconds() << "\t" << newCwnd << std::endl;
 }
 
 int
@@ -109,43 +99,47 @@ main(int argc, char* argv[])
     // 在程序开始时打开文件流，使用trunc模式清空文件
     cwndStream_n0_job1.open("atp-result/trace-p2p-multi-jobs/n0-job1-cwnd-p2p-multi-job.txt", std::ofstream::out | std::ofstream::trunc);
     cwndStream_n1_job1.open("atp-result/trace-p2p-multi-jobs/n1-job1-cwnd-p2p-multi-job.txt", std::ofstream::out | std::ofstream::trunc);
-    cwndStream_n0_job2.open("atp-result/trace-p2p-multi-jobs/n0-job2-cwnd-p2p-multi-job.txt", std::ofstream::out | std::ofstream::trunc);
-    cwndStream_n1_job2.open("atp-result/trace-p2p-multi-jobs/n1-job2-cwnd-p2p-multi-job.txt", std::ofstream::out | std::ofstream::trunc);
-    SinkBytesStream_job1.open("atp-result/trace-p2p-multi-jobs/n0-job1-sinkBytes-p2p-multi-job.txt", std::ofstream::out | std::ofstream::trunc);
-    SinkBytesStream_job2.open("atp-result/trace-p2p-multi-jobs/n0-job2-sinkBytes-p2p-multi-job.txt", std::ofstream::out | std::ofstream::trunc);
+    cwndStream_m0_job2.open("atp-result/trace-p2p-multi-jobs/m0-job2-cwnd-p2p-multi-job.txt", std::ofstream::out | std::ofstream::trunc);
+    cwndStream_m1_job2.open("atp-result/trace-p2p-multi-jobs/m1-job2-cwnd-p2p-multi-job.txt", std::ofstream::out | std::ofstream::trunc);
+    SinkBytesStream_job1.open("atp-result/trace-p2p-multi-jobs/job1-sinkBytes-p2p-multi-job.txt", std::ofstream::out | std::ofstream::trunc);
+    SinkBytesStream_job2.open("atp-result/trace-p2p-multi-jobs/job2-sinkBytes-p2p-multi-job.txt", std::ofstream::out | std::ofstream::trunc);
     
 
-    uint32_t maxBytes = 0;
-    Time stopTime = Seconds(2);
+    uint32_t maxBytes = 24800;
+    Time stopTime = Seconds(1.21);
 
     //
     // Explicitly create the nodes required by the topology (shown above).
     //
     NS_LOG_INFO("Create nodes.");
     NodeContainer nodes;
-    nodes.Create(4);
+    nodes.Create(6); // 增加到6个节点: n0,n1,m0,m1,n2,n3
 
-    NodeContainer n0n2 = NodeContainer(nodes.Get(0), nodes.Get(2));
-    NodeContainer n1n2 = NodeContainer(nodes.Get(1), nodes.Get(2));
-    NodeContainer n2n3 = NodeContainer(nodes.Get(2), nodes.Get(3));
+    NodeContainer n0n2 = NodeContainer(nodes.Get(0), nodes.Get(4)); // n0-n2
+    NodeContainer n1n2 = NodeContainer(nodes.Get(1), nodes.Get(4)); // n1-n2
+    NodeContainer m0n2 = NodeContainer(nodes.Get(2), nodes.Get(4)); // m0-n2
+    NodeContainer m1n2 = NodeContainer(nodes.Get(3), nodes.Get(4)); // m1-n2
+    NodeContainer n2n3 = NodeContainer(nodes.Get(4), nodes.Get(5)); // n2-n3
 
     NS_LOG_INFO("Create channels.");
 
     //
-    // Explicitly create the point-to-point link required by the topology (shown above).
+    // Explicitly create the point-to-point links required by the topology (shown above).
     //
     PointToPointHelper pointToPoint;
     pointToPoint.SetDeviceAttribute("DataRate", StringValue("5Gbps"));
     pointToPoint.SetChannelAttribute("Delay", StringValue("2us"));
 
-    NetDeviceContainer d0d2, d1d2, d2d3;
+    NetDeviceContainer d0d2, d1d2, d2d3, m0d2, m1d2;
     d0d2 = pointToPoint.Install(n0n2);
     d1d2 = pointToPoint.Install(n1n2);
+    m0d2 = pointToPoint.Install(m0n2);
+    m1d2 = pointToPoint.Install(m1n2);
     d2d3 = pointToPoint.Install(n2n3);
 
-    // 设置n2上与n2连接部分的队列阈值
+    // 设置n2上与n3连接部分的队列阈值
     Ptr<PointToPointNetDevice> n2Device = DynamicCast<PointToPointNetDevice>(d2d3.Get(0));
-    n2Device->SetThreshold(1);
+    n2Device->SetThreshold(20);
 
     //
     // Install the internet stack on the nodes
@@ -158,8 +152,8 @@ main(int argc, char* argv[])
     // We've got the "hardware" in place.  Now we need to add IP addresses.
     //
     NS_LOG_INFO("Assign IP Addresses.");
-    // 使用ipv4Helper作为地址分配器的名字
     Ipv4AddressHelper ipv4Helper;
+    
     ipv4Helper.SetBase("10.1.1.0", "255.255.255.0");
     Ipv4InterfaceContainer i0i2 = ipv4Helper.Assign(d0d2);
 
@@ -167,6 +161,12 @@ main(int argc, char* argv[])
     Ipv4InterfaceContainer i1i2 = ipv4Helper.Assign(d1d2);
 
     ipv4Helper.SetBase("10.1.3.0", "255.255.255.0");
+    Ipv4InterfaceContainer im0i2 = ipv4Helper.Assign(m0d2);
+
+    ipv4Helper.SetBase("10.1.4.0", "255.255.255.0");
+    Ipv4InterfaceContainer im1i2 = ipv4Helper.Assign(m1d2);
+
+    ipv4Helper.SetBase("10.1.5.0", "255.255.255.0");
     Ipv4InterfaceContainer i2i3 = ipv4Helper.Assign(d2d3);
 
     NS_LOG_INFO("Create Applications.");
@@ -183,7 +183,7 @@ main(int argc, char* argv[])
     sinkApp->SetAddressPort(sinkAddress, sinkPort);
 
     // create ATPSocket and bind to sinkAddress
-    Ptr<Socket> sinkSocket = Socket::CreateSocket(nodes.Get(3), ATPSocketFactory::GetTypeId());
+    Ptr<Socket> sinkSocket = Socket::CreateSocket(nodes.Get(5), ATPSocketFactory::GetTypeId());
     Ptr<ATPSocket> sinkATPSocket = DynamicCast<ATPSocket>(sinkSocket);
     sinkApp->SetSocket(sinkATPSocket);
     sinkATPSocket->Bind(sinkAddress);
@@ -192,34 +192,34 @@ main(int argc, char* argv[])
     // start sinkApp
     sinkApp->SetStartTime(Seconds(0.0));
     sinkApp->SetStopTime(stopTime);
-    nodes.Get(3)->AddApplication(sinkApp);
+    nodes.Get(5)->AddApplication(sinkApp);
 
     //
     // Create sockets for job1 and job2 on n0 and n1
     //
     Ptr<Socket> n0job1socket = Socket::CreateSocket(nodes.Get(0), ATPSocketFactory::GetTypeId());
     Ptr<Socket> n1job1socket = Socket::CreateSocket(nodes.Get(1), ATPSocketFactory::GetTypeId());
-    Ptr<Socket> n0job2socket = Socket::CreateSocket(nodes.Get(0), ATPSocketFactory::GetTypeId());
-    Ptr<Socket> n1job2socket = Socket::CreateSocket(nodes.Get(1), ATPSocketFactory::GetTypeId());
+    Ptr<Socket> m0job2socket = Socket::CreateSocket(nodes.Get(2), ATPSocketFactory::GetTypeId());
+    Ptr<Socket> m1job2socket = Socket::CreateSocket(nodes.Get(3), ATPSocketFactory::GetTypeId());
 
     Ptr<ATPSocket> n0job1_ATPSocket = DynamicCast<ATPSocket>(n0job1socket);
     Ptr<ATPSocket> n1job1_ATPSocket = DynamicCast<ATPSocket>(n1job1socket);
-    Ptr<ATPSocket> n0job2_ATPSocket = DynamicCast<ATPSocket>(n0job2socket);
-    Ptr<ATPSocket> n1job2_ATPSocket = DynamicCast<ATPSocket>(n1job2socket);
+    Ptr<ATPSocket> m0job2_ATPSocket = DynamicCast<ATPSocket>(m0job2socket);
+    Ptr<ATPSocket> m1job2_ATPSocket = DynamicCast<ATPSocket>(m1job2socket);
 
     // Create and configure applications for job1
     Ptr<ATPBulkSendApplication> n0job1App = CreateObject<ATPBulkSendApplication>();
     Ptr<ATPBulkSendApplication> n1job1App = CreateObject<ATPBulkSendApplication>();
-    Ptr<ATPBulkSendApplication> n0job2App = CreateObject<ATPBulkSendApplication>();
-    Ptr<ATPBulkSendApplication> n1job2App = CreateObject<ATPBulkSendApplication>();
+    Ptr<ATPBulkSendApplication> m0job2App = CreateObject<ATPBulkSendApplication>();
+    Ptr<ATPBulkSendApplication> m1job2App = CreateObject<ATPBulkSendApplication>();
 
     uint16_t sendPort = 11;  // Port for job1
     uint16_t sendPort2 = 12; // Different port for job2
 
     Address n0Address(InetSocketAddress(i0i2.GetAddress(0), sendPort));  // 使用端口11
     Address n1Address(InetSocketAddress(i1i2.GetAddress(0), sendPort));  // 使用端口11
-    Address n0Address2(InetSocketAddress(i0i2.GetAddress(0), sendPort2));  // 使用端口12
-    Address n1Address2(InetSocketAddress(i1i2.GetAddress(0), sendPort2));  // 使用端口12
+    Address m0Address(InetSocketAddress(im0i2.GetAddress(0), sendPort2));  // 使用端口12
+    Address m1Address(InetSocketAddress(im1i2.GetAddress(0), sendPort2));  // 使用端口12
 
     // Configure n0job1App
     n0job1App->Setup(sinkAddress, n0job1_ATPSocket, maxBytes, 1);
@@ -252,64 +252,53 @@ main(int argc, char* argv[])
     nodes.Get(1)->AddApplication(n1job1App);
 
     // Configure n0job2App
-    n0job2App->Setup(sinkAddress, n0job2_ATPSocket, maxBytes, 2);  // Note jobId = 2
-    n0job2App->SetEnableATPTag(true);
-    n0job2App->SetStartTime(Seconds(1.0));  // Start at the same time as job1
-    n0job2App->SetStopTime(stopTime);
-    n0job2App->SetWorkerId(0b00000001);
+    m0job2App->Setup(sinkAddress, m0job2_ATPSocket, maxBytes, 2);  // Note jobId = 2
+    m0job2App->SetEnableATPTag(true);
+    m0job2App->SetStartTime(Seconds(1.0));  // Start at the same time as job1
+    m0job2App->SetStopTime(stopTime);
+    m0job2App->SetWorkerId(0b00000001);
 
-    n0job2_ATPSocket->SetConnectCallback(MakeCallback(&ATPBulkSendApplication::ConnectionSucceeded, n0job2App),
-                                MakeCallback(&ATPBulkSendApplication::ConnectionFailed, n0job2App));
-    n0job2_ATPSocket->SetSendCallback(MakeCallback(&ATPBulkSendApplication::DataSend, n0job2App));
-    n0job2_ATPSocket->Bind(n0Address2);
-    n0job2_ATPSocket->Connect(sinkAddress);
+    m0job2_ATPSocket->SetConnectCallback(MakeCallback(&ATPBulkSendApplication::ConnectionSucceeded, m0job2App),
+                                MakeCallback(&ATPBulkSendApplication::ConnectionFailed, m0job2App));
+    m0job2_ATPSocket->SetSendCallback(MakeCallback(&ATPBulkSendApplication::DataSend, m0job2App));
+    m0job2_ATPSocket->Bind(m0Address);
+    m0job2_ATPSocket->Connect(sinkAddress);
 
-    nodes.Get(0)->AddApplication(n0job2App);
+    nodes.Get(2)->AddApplication(m0job2App);
 
-    // Configure n1job2App
-    n1job2App->Setup(sinkAddress, n1job2_ATPSocket, maxBytes, 2);  // Note jobId = 2
-    n1job2App->SetEnableATPTag(true);
-    n1job2App->SetStartTime(Seconds(1.0));  // Start at the same time as job1
-    n1job2App->SetStopTime(stopTime);
-    n1job2App->SetWorkerId(0b00000010);
+    // Configure m1job2App
+    m1job2App->Setup(sinkAddress, m1job2_ATPSocket, maxBytes, 2);  // Note jobId = 2
+    m1job2App->SetEnableATPTag(true);
+    m1job2App->SetStartTime(Seconds(1.0));  // Start at the same time as job1
+    m1job2App->SetStopTime(stopTime);
+    m1job2App->SetWorkerId(0b00000010);
 
-    n1job2_ATPSocket->SetConnectCallback(MakeCallback(&ATPBulkSendApplication::ConnectionSucceeded, n1job2App),
-                                MakeCallback(&ATPBulkSendApplication::ConnectionFailed, n1job2App));
-    n1job2_ATPSocket->SetSendCallback(MakeCallback(&ATPBulkSendApplication::DataSend, n1job2App));
-    n1job2_ATPSocket->Bind(n1Address2);
-    n1job2_ATPSocket->Connect(sinkAddress);
+    m1job2_ATPSocket->SetConnectCallback(MakeCallback(&ATPBulkSendApplication::ConnectionSucceeded, m1job2App),
+                                MakeCallback(&ATPBulkSendApplication::ConnectionFailed, m1job2App));
+    m1job2_ATPSocket->SetSendCallback(MakeCallback(&ATPBulkSendApplication::DataSend, m1job2App));
+    m1job2_ATPSocket->Bind(m1Address);
+    m1job2_ATPSocket->Connect(sinkAddress);
 
-    nodes.Get(1)->AddApplication(n1job2App);
+    nodes.Get(3)->AddApplication(m1job2App);
 
     // 连接拥塞窗口跟踪
     n0job1_ATPSocket->GetTxBuffer()->TraceConnectWithoutContext("cwndTrace",
          MakeCallback(&CwndChange_n0_job1));
     n1job1_ATPSocket->GetTxBuffer()->TraceConnectWithoutContext("cwndTrace",
          MakeCallback(&CwndChange_n1_job1));
-    n0job2_ATPSocket->GetTxBuffer()->TraceConnectWithoutContext("cwndTrace",
-         MakeCallback(&CwndChange_n0_job2));
-    n1job2_ATPSocket->GetTxBuffer()->TraceConnectWithoutContext("cwndTrace",
-         MakeCallback(&CwndChange_n1_job2));
-
-    // 添加地址映射
-    sinkATPSocket->AddAddressMapping(1, i0i2.GetAddress(0), sendPort);  // job1
-    sinkATPSocket->AddAddressMapping(1, i1i2.GetAddress(0), sendPort);  // job1
-    sinkATPSocket->AddAddressMapping(2, i0i2.GetAddress(0), sendPort2); // job2
-    sinkATPSocket->AddAddressMapping(2, i1i2.GetAddress(0), sendPort2); // job2
-
-    // 配置静态路由
-    // 获取每个节点的Ipv4对象
-    Ptr<Ipv4> ipv4_n0 = nodes.Get(0)->GetObject<Ipv4>();
-    Ptr<Ipv4> ipv4_n1 = nodes.Get(1)->GetObject<Ipv4>();
-    Ptr<Ipv4> ipv4_n2 = nodes.Get(2)->GetObject<Ipv4>();
-    Ptr<Ipv4> ipv4_n3 = nodes.Get(3)->GetObject<Ipv4>();
+    m0job2_ATPSocket->GetTxBuffer()->TraceConnectWithoutContext("cwndTrace",
+         MakeCallback(&CwndChange_m0_job2));
+    m1job2_ATPSocket->GetTxBuffer()->TraceConnectWithoutContext("cwndTrace",
+         MakeCallback(&CwndChange_m1_job2));
 
     // 获取每个节点的静态路由对象
     ATPStaticRoutingHelper staticRoutingHelper;
-    Ptr<ATPStaticRouting> staticRouting_n0 = staticRoutingHelper.GetStaticRouting(ipv4_n0);
-    Ptr<ATPStaticRouting> staticRouting_n1 = staticRoutingHelper.GetStaticRouting(ipv4_n1);
-    Ptr<ATPStaticRouting> staticRouting_n2 = staticRoutingHelper.GetStaticRouting(ipv4_n2);
-    Ptr<ATPStaticRouting> staticRouting_n3 = staticRoutingHelper.GetStaticRouting(ipv4_n3);
+    Ptr<ATPStaticRouting> staticRouting_n0 = staticRoutingHelper.GetStaticRouting(nodes.Get(0)->GetObject<Ipv4>());
+    Ptr<ATPStaticRouting> staticRouting_n1 = staticRoutingHelper.GetStaticRouting(nodes.Get(1)->GetObject<Ipv4>());
+    Ptr<ATPStaticRouting> staticRouting_m0 = staticRoutingHelper.GetStaticRouting(nodes.Get(2)->GetObject<Ipv4>());
+    Ptr<ATPStaticRouting> staticRouting_m1 = staticRoutingHelper.GetStaticRouting(nodes.Get(3)->GetObject<Ipv4>());
+    Ptr<ATPStaticRouting> staticRouting_n2 = staticRoutingHelper.GetStaticRouting(nodes.Get(4)->GetObject<Ipv4>());
+    Ptr<ATPStaticRouting> staticRouting_n3 = staticRoutingHelper.GetStaticRouting(nodes.Get(5)->GetObject<Ipv4>());
 
     staticRouting_n2->SetEnableAggregation(true);
 
@@ -321,19 +310,41 @@ main(int argc, char* argv[])
     // n1到n3的路由:通过n2转发
     staticRouting_n1->AddHostRouteTo(i2i3.GetAddress(1), i1i2.GetAddress(1), 1);
 
+    // 配置m0的路由表
+    // m0到n3的路由:通过n2转发
+    staticRouting_m0->AddHostRouteTo(i2i3.GetAddress(1), im0i2.GetAddress(1), 1);
+
+    // 配置m1的路由表
+    // m1到n3的路由:通过n2转发
+    staticRouting_m1->AddHostRouteTo(i2i3.GetAddress(1), im1i2.GetAddress(1), 1);
+
     // 配置n2的路由表
     // n2到n0的路由
     staticRouting_n2->AddHostRouteTo(i0i2.GetAddress(0), i0i2.GetAddress(0), 1);
     // n2到n1的路由  
     staticRouting_n2->AddHostRouteTo(i1i2.GetAddress(0), i1i2.GetAddress(0), 2);
+    // n2到m0的路由
+    staticRouting_n2->AddHostRouteTo(im0i2.GetAddress(0), im0i2.GetAddress(0), 3);
+    // n2到m1的路由
+    staticRouting_n2->AddHostRouteTo(im1i2.GetAddress(0), im1i2.GetAddress(0), 4);
     // n2到n3的路由
-    staticRouting_n2->AddHostRouteTo(i2i3.GetAddress(1), i2i3.GetAddress(1), 3);
+    staticRouting_n2->AddHostRouteTo(i2i3.GetAddress(1), i2i3.GetAddress(1), 5);
 
     // 配置n3的路由表
     // n3到n0的路由:通过n2转发
     staticRouting_n3->AddHostRouteTo(i0i2.GetAddress(0), i2i3.GetAddress(0), 1);
     // n3到n1的路由:通过n2转发
     staticRouting_n3->AddHostRouteTo(i1i2.GetAddress(0), i2i3.GetAddress(0), 1);
+    // n3到m0的路由:通过n2转发
+    staticRouting_n3->AddHostRouteTo(im0i2.GetAddress(0), i2i3.GetAddress(0), 1);
+    // n3到m1的路由:通过n2转发
+    staticRouting_n3->AddHostRouteTo(im1i2.GetAddress(0), i2i3.GetAddress(0), 1);
+
+    // 添加地址映射
+    sinkATPSocket->AddAddressMapping(1, i0i2.GetAddress(0), sendPort);  // job1 - n0
+    sinkATPSocket->AddAddressMapping(1, i1i2.GetAddress(0), sendPort);  // job1 - n1
+    sinkATPSocket->AddAddressMapping(2, im0i2.GetAddress(0), sendPort2); // job2 - m0
+    sinkATPSocket->AddAddressMapping(2, im1i2.GetAddress(0), sendPort2); // job2 - m1
 
     // 开始测量
     Simulator::Schedule(MilliSeconds(100), &Measurement, sinkApp);
@@ -349,8 +360,8 @@ main(int argc, char* argv[])
 
     cwndStream_n0_job1.close();
     cwndStream_n1_job1.close();
-    cwndStream_n0_job2.close();
-    cwndStream_n1_job2.close();
+    cwndStream_m0_job2.close();
+    cwndStream_m1_job2.close();
     SinkBytesStream_job1.close();
     SinkBytesStream_job2.close();
 

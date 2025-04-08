@@ -222,6 +222,7 @@ class Ipv4GlobalRouting : public Ipv4RoutingProtocol
 
   protected:
     void DoDispose() override;
+    Ptr<Ipv4> GetIpv4() const { return m_ipv4; }
 
   private:
     /// Set to true if packets are randomly routed among ECMP; set to false for using only one route
