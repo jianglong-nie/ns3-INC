@@ -60,8 +60,8 @@ ATPSocket::ATPSocket()
     m_initCwnd = 1;
 
     m_allowBroadcast = false;
-    m_txBufferSize = 248 * 40;
-    m_rxBufferSize = 248 * 40;
+    m_txBufferSize = 248 * 2000;
+    m_rxBufferSize = 248 * 2000;
     m_txAvailable = m_txBufferSize;
     m_rxAvailable = m_rxBufferSize;
 
@@ -84,6 +84,14 @@ ATPSocket::~ATPSocket()
         m_endPoint = nullptr;
     }
     m_atp = nullptr;
+}
+
+void
+ATPSocket::SetInitCwnd(uint32_t initCwnd)
+{
+    NS_LOG_FUNCTION(this << initCwnd);
+    m_initCwnd = initCwnd;
+    m_txBuffer->SetCwnd(m_initCwnd);
 }
 
 void
@@ -663,7 +671,7 @@ ATPSocket::ReceiveAck(ATPTag atpTag)
         // ECN标记且计时器未运行时，减半窗口并启动计时器
         if (isEcn && !m_ecnTimerRunning) {
             m_txBuffer->ProcessCongestion(true);
-            m_ecnTimerEvent = Simulator::Schedule(MilliSeconds(50), &ATPSocket::ResetEcnTimer, this);
+            m_ecnTimerEvent = Simulator::Schedule(MicroSeconds(40), &ATPSocket::ResetEcnTimer, this);
             m_ecnTimerRunning = true;
         } 
         if (!isEcn) {
@@ -683,7 +691,7 @@ ATPSocket::ReceiveAck(ATPTag atpTag)
         if (packet != nullptr) {
             if (!m_ecnTimerRunning) {
                 m_txBuffer->ProcessCongestion(true);
-                m_ecnTimerEvent = Simulator::Schedule(Seconds(1), &ATPSocket::ResetEcnTimer, this);
+                m_ecnTimerEvent = Simulator::Schedule(MicroSeconds(40), &ATPSocket::ResetEcnTimer, this);
                 m_ecnTimerRunning = true;
             }
             // 执行重传函数
@@ -809,6 +817,7 @@ ATPSocket::AggregatePacket(Ptr<Packet> packet,
         if (aggregator.IsEmpty()) {
             aggregator.m_jobId = atpTag.GetJobId();
             aggregator.m_seqNum = atpTag.GetSeqNumber();
+            aggregator.m_faninDegree = atpTag.GetFaninDegree();
             NS_LOG_INFO("Using empty aggregator at index " << index 
                         << " for jobId " << static_cast<int>(atpTag.GetJobId())
                         << " seqNum " << static_cast<int>(atpTag.GetSeqNumber()));

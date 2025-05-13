@@ -9,7 +9,7 @@ Aggregator::Aggregator()
     : m_jobId(0),
       m_seqNum(0),
       m_count(0),
-      m_faninDegree(0b00000011),
+      m_faninDegree(0b00000000),
       m_workerIdAgg(0b00000000),
       m_packet(nullptr)
 {
@@ -40,7 +40,7 @@ Aggregator::AddPacket(Ptr<const Packet> packet)
     ATPTag atpTag;
     packet->PeekPacketTag(atpTag);
     uint8_t workerId = atpTag.GetWorkerId();
-    
+
     if (m_packet == nullptr)
     {
         m_packet = packet->Copy();
@@ -73,7 +73,7 @@ Aggregator::Reset()
 {
     NS_LOG_FUNCTION(this);
     m_workerIdAgg = 0b00000000;
-    m_faninDegree = 0b00000011;
+    m_faninDegree = 0b00000000;
     m_jobId = 0;
     m_seqNum = 0;
     m_count = 0;

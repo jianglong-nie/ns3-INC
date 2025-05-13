@@ -46,6 +46,20 @@ ATPTag::ATPTag()
 }
 
 void
+ATPTag::SetFaninDegree(uint8_t faninDegree)
+{
+    NS_LOG_FUNCTION(this << faninDegree);
+    m_faninDegree = faninDegree;
+}
+
+uint8_t
+ATPTag::GetFaninDegree() const
+{
+    NS_LOG_FUNCTION(this);
+    return m_faninDegree;
+}
+
+void
 ATPTag::SetWorkerId(uint8_t workerId)
 {
     NS_LOG_FUNCTION(this << workerId);
@@ -175,8 +189,8 @@ uint32_t
 ATPTag::GetSerializedSize() const
 {
     NS_LOG_FUNCTION(this);
-    return  1 + 1 + 1 + 4 + 4 + 1 + 2 + 2 + 2;
-    // workerId + packetType + jobId + seqNum + ackNum + ecn + 
+    return  1 + 1 + 1 + 1 + 4 + 4 + 1 + 2 + 2 + 2;
+    // faninDegree + workerId + packetType + jobId + seqNum + ackNum + ecn + 
     // size + sourcePort + destinationPort
 }
 
@@ -184,6 +198,7 @@ void
 ATPTag::Serialize(TagBuffer buf) const
 {
     NS_LOG_FUNCTION(this << &buf);
+    buf.WriteU8(m_faninDegree);
     buf.WriteU8(m_workerId);
     buf.WriteU8(m_atpPacketType);
     buf.WriteU8(m_jobId);
@@ -199,6 +214,7 @@ void
 ATPTag::Deserialize(TagBuffer buf)
 {
     NS_LOG_FUNCTION(this << &buf);
+    m_faninDegree = buf.ReadU8();
     m_workerId = buf.ReadU8();
     m_atpPacketType = buf.ReadU8();
     m_jobId = buf.ReadU8();
@@ -213,7 +229,8 @@ ATPTag::Deserialize(TagBuffer buf)
 void ATPTag::Print(std::ostream& os) const
 {
     NS_LOG_FUNCTION(this << &os);
-    os << " workerId=" << static_cast<int>(m_workerId)
+    os << " faninDegree=" << static_cast<int>(m_faninDegree)
+       << " workerId=" << static_cast<int>(m_workerId)
        << " packetType=" << static_cast<int>(m_atpPacketType)
        << " (seqNum=" << static_cast<int>(m_seqNum)
        << " jobId=" << static_cast<int>(m_jobId)
@@ -228,6 +245,7 @@ void ATPTag::Print(std::ostream& os) const
 void
 ATPTag::CopyFrom(const ATPTag& other)
 {
+    m_faninDegree = other.m_faninDegree;
     m_workerId = other.m_workerId;
     m_atpPacketType = other.m_atpPacketType;
     m_jobId = other.m_jobId;

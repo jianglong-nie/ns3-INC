@@ -95,10 +95,10 @@
             "MIMode": "lldb"
         },
         {
-            "name": "Debug atp-csma-bridge",
+            "name": "Debug atp-hierarchical-aggregation",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/contrib/atp/examples/ns3.43-atp-csma-bridge-default",
+            "program": "${workspaceFolder}/build/contrib/atp/examples/ns3.43-atp-hierarchical-aggregation-default",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

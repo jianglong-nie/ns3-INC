@@ -105,6 +105,9 @@ class ATPSocket : public Socket
     void AddAddressMapping(uint8_t jobId, const Ipv4Address& addr, uint16_t port);
     const std::vector<std::pair<Ipv4Address, uint16_t>>& GetAddressMapping(uint8_t jobId) const;
 
+    // 设置初始拥塞窗口
+    void SetInitCwnd(uint32_t initCwnd);
+
   protected:
     void SendWindowData();
     int DoSend(Ptr<Packet> p);
@@ -162,7 +165,7 @@ class ATPSocket : public Socket
     uint32_t m_txAvailable;                         // 发送缓冲区可发送数据量
     Ptr<ATPTxBuffer> m_txBuffer;                    // 发送缓冲区，自定义的类型
     std::queue<std::pair<Ptr<Packet>, Address>> m_rxBuffer; // 接收缓冲区，是个队列
-    uint32_t MAX_AGGREGATORS = 4096;
+    uint32_t MAX_AGGREGATORS = 8192;
     std::vector<Aggregator> m_aggregators;          // 聚合器
 
     // 拥塞控制

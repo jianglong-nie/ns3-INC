@@ -97,16 +97,16 @@ main(int argc, char* argv[])
     //LogComponentEnable("ATPL4Protocol", LOG_LEVEL_ALL);
 
     // 在程序开始时打开文件流，使用trunc模式清空文件
-    cwndStream_n0_job1.open("atp-result/trace-p2p-multi-jobs/n0-job1-cwnd-p2p-multi-job.txt", std::ofstream::out | std::ofstream::trunc);
-    cwndStream_n1_job1.open("atp-result/trace-p2p-multi-jobs/n1-job1-cwnd-p2p-multi-job.txt", std::ofstream::out | std::ofstream::trunc);
-    cwndStream_m0_job2.open("atp-result/trace-p2p-multi-jobs/m0-job2-cwnd-p2p-multi-job.txt", std::ofstream::out | std::ofstream::trunc);
-    cwndStream_m1_job2.open("atp-result/trace-p2p-multi-jobs/m1-job2-cwnd-p2p-multi-job.txt", std::ofstream::out | std::ofstream::trunc);
-    SinkBytesStream_job1.open("atp-result/trace-p2p-multi-jobs/job1-sinkBytes-p2p-multi-job.txt", std::ofstream::out | std::ofstream::trunc);
-    SinkBytesStream_job2.open("atp-result/trace-p2p-multi-jobs/job2-sinkBytes-p2p-multi-job.txt", std::ofstream::out | std::ofstream::trunc);
+    cwndStream_n0_job1.open("atp-result/trace-p2p-ecn/n0-job1-cwnd-p2p-ecn.txt", std::ofstream::out | std::ofstream::trunc);
+    cwndStream_n1_job1.open("atp-result/trace-p2p-ecn/n1-job1-cwnd-p2p-ecn.txt", std::ofstream::out | std::ofstream::trunc);
+    cwndStream_m0_job2.open("atp-result/trace-p2p-ecn/m0-job2-cwnd-p2p-ecn.txt", std::ofstream::out | std::ofstream::trunc);
+    cwndStream_m1_job2.open("atp-result/trace-p2p-ecn/m1-job2-cwnd-p2p-ecn.txt", std::ofstream::out | std::ofstream::trunc);
+    SinkBytesStream_job1.open("atp-result/trace-p2p-ecn/job1-sinkBytes-p2p-ecn.txt", std::ofstream::out | std::ofstream::trunc);
+    SinkBytesStream_job2.open("atp-result/trace-p2p-ecn/job2-sinkBytes-p2p-ecn.txt", std::ofstream::out | std::ofstream::trunc);
     
 
-    uint32_t maxBytes = 24800;
-    Time stopTime = Seconds(1.21);
+    uint32_t maxBytes = 0;
+    Time stopTime = Seconds(1.11);
 
     //
     // Explicitly create the nodes required by the topology (shown above).
@@ -169,12 +169,11 @@ main(int argc, char* argv[])
     ipv4Helper.SetBase("10.1.5.0", "255.255.255.0");
     Ipv4InterfaceContainer i2i3 = ipv4Helper.Assign(d2d3);
 
-    NS_LOG_INFO("Create Applications.");
-
     //
     // Create a PacketSinkApplication and install it on node 3
     //
-
+    NS_LOG_INFO("Create Applications.");
+    
     Ptr<ATPPacketSink> sinkApp = CreateObject<ATPPacketSink>();
 
     // add address and port
@@ -226,6 +225,7 @@ main(int argc, char* argv[])
     n0job1App->SetEnableATPTag(true);
     n0job1App->SetStartTime(Seconds(1.0));
     n0job1App->SetStopTime(stopTime);
+    n0job1App->SetFaninDegree(0b00000011);
     n0job1App->SetWorkerId(0b00000001);
 
     n0job1_ATPSocket->SetConnectCallback(MakeCallback(&ATPBulkSendApplication::ConnectionSucceeded, n0job1App),
@@ -241,6 +241,7 @@ main(int argc, char* argv[])
     n1job1App->SetEnableATPTag(true);
     n1job1App->SetStartTime(Seconds(1.0));
     n1job1App->SetStopTime(stopTime);
+    n1job1App->SetFaninDegree(0b00000011);
     n1job1App->SetWorkerId(0b00000010);
 
     n1job1_ATPSocket->SetConnectCallback(MakeCallback(&ATPBulkSendApplication::ConnectionSucceeded, n1job1App),
@@ -256,6 +257,7 @@ main(int argc, char* argv[])
     m0job2App->SetEnableATPTag(true);
     m0job2App->SetStartTime(Seconds(1.0));  // Start at the same time as job1
     m0job2App->SetStopTime(stopTime);
+    m0job2App->SetFaninDegree(0b00000011);
     m0job2App->SetWorkerId(0b00000001);
 
     m0job2_ATPSocket->SetConnectCallback(MakeCallback(&ATPBulkSendApplication::ConnectionSucceeded, m0job2App),
@@ -271,6 +273,7 @@ main(int argc, char* argv[])
     m1job2App->SetEnableATPTag(true);
     m1job2App->SetStartTime(Seconds(1.0));  // Start at the same time as job1
     m1job2App->SetStopTime(stopTime);
+    m1job2App->SetFaninDegree(0b00000011);
     m1job2App->SetWorkerId(0b00000010);
 
     m1job2_ATPSocket->SetConnectCallback(MakeCallback(&ATPBulkSendApplication::ConnectionSucceeded, m1job2App),

@@ -231,6 +231,7 @@ ATPL4Protocol::AggregatePacket(Ptr<Packet> packet)
         if (aggregator.IsEmpty()) {
             aggregator.m_jobId = atpTag.GetJobId();
             aggregator.m_seqNum = atpTag.GetSeqNumber();
+            aggregator.m_faninDegree = atpTag.GetFaninDegree();
         }
 
         // 添加数据包到聚合器

@@ -253,6 +253,7 @@ ATPBulkSendApplication::SendData(const Address& from, const Address& to)
             atpTag.SetPacketType(ATPTag::DATA);
             atpTag.SetJobId(m_jobId);
             atpTag.SetWorkerId(m_workerId);
+            atpTag.SetFaninDegree(m_faninDegree);
             m_seqNum++; // 序列号自增，初值0，加加后从1开始计数
             atpTag.SetSeqNumber(m_seqNum);
             atpTag.SetAckNumber(m_seqNum);
@@ -360,6 +361,20 @@ ATPBulkSendApplication::GetJobId() const
 {
     NS_LOG_FUNCTION(this);
     return m_jobId;
+}
+
+void
+ATPBulkSendApplication::SetFaninDegree(uint8_t faninDegree)
+{
+    NS_LOG_FUNCTION(this << faninDegree);
+    m_faninDegree = faninDegree;
+}
+
+uint8_t
+ATPBulkSendApplication::GetFaninDegree() const
+{
+    NS_LOG_FUNCTION(this);
+    return m_faninDegree;
 }
 
 void

@@ -136,6 +136,16 @@ class ATPTxBuffer : public Object
      */
     void UpdateCwndLeftBound(uint32_t ackNum);
 
+    /**
+     * \brief 处理窗口自动增长
+     */
+    void HandleWindowIncrease();
+
+    /**
+     * \brief 启动窗口增长定时器
+     */
+    void StartWindowIncreaseTimer();
+
     typedef std::queue<ATPTxItem*> PacketQueue; //!< 数据包队列类型
     
     PacketQueue m_pendingQueue;         //!< 待发送数据队列
@@ -148,8 +158,11 @@ class ATPTxBuffer : public Object
     // 窗口管理
     uint32_t m_maxCwnd{1};              //!< 最大拥塞窗口长度
     uint32_t m_leftBound{0};            //!< 最小拥塞窗口左边界，左边界之前都是已经发送的数据包
-    uint32_t m_cwnd{1};                 //!< 拥塞窗口长度
+    double m_virtualCwnd{1.0};          //!< 虚拟拥塞窗口长度
+    uint32_t m_cwnd{1};                 //!< 当前拥塞窗口长度
     TracedValue<uint32_t> m_cwndTrace;  //!< 拥塞窗口长度
+
+    EventId m_windowIncreaseEvent;  //!< 窗口增长定时器事件
 };
 
 } // namespace ns3

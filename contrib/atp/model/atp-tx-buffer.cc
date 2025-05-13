@@ -24,14 +24,21 @@ ATPTxBuffer::ATPTxBuffer()
   : m_bufferSize(0), // 需要socket进行设置，比较重要
     m_bufferDataSize(0),
     m_packetNum(0),
+    m_virtualCwnd(1.0),
     m_cwnd(1)              //!< 拥塞窗口大小
 {
   NS_LOG_FUNCTION(this);
+  //StartWindowIncreaseTimer();
 }
 
 ATPTxBuffer::~ATPTxBuffer()
 {
     NS_LOG_FUNCTION(this);
+    
+    // 取消定时器
+    if (m_windowIncreaseEvent.IsPending()) {
+        m_windowIncreaseEvent.Cancel();
+    }
     
     // 清理待发送队列
     while (!m_pendingQueue.empty())
@@ -69,6 +76,7 @@ void
 ATPTxBuffer::SetCwnd(uint32_t cwnd)
 {
     m_cwnd = cwnd;
+    m_virtualCwnd = static_cast<double>(m_cwnd);
     m_cwndTrace = m_cwnd;
 }
 
@@ -247,35 +255,66 @@ ATPTxBuffer::ProcessUnorderedAck(uint32_t packetId)
 }
 
 void
+ATPTxBuffer::HandleWindowIncrease()
+{
+    NS_LOG_FUNCTION(this);
+    
+    // 增加虚拟窗口大小
+    m_virtualCwnd += 1.0;
+    
+    // 更新实际窗口大小
+    m_cwnd = static_cast<uint32_t>(m_virtualCwnd);
+    if (m_cwnd > m_maxCwnd) {
+        m_cwnd = m_maxCwnd;
+        m_virtualCwnd = static_cast<double>(m_maxCwnd);
+    }
+    m_cwndTrace = m_cwnd;
+
+    // 安排下一次增长
+    StartWindowIncreaseTimer();
+}
+
+void
+ATPTxBuffer::StartWindowIncreaseTimer()
+{
+    NS_LOG_FUNCTION(this);
+    // Use MakeEvent to potentially resolve overload issues
+    m_windowIncreaseEvent = Simulator::Schedule(MicroSeconds(9),
+                                                    &ATPTxBuffer::HandleWindowIncrease,
+                                                    this);
+}
+
+void
 ATPTxBuffer::ProcessCongestion(bool isEcn)
 {
     NS_LOG_FUNCTION(this << isEcn);
     
-    uint32_t oldCwnd = m_cwnd;
     if (isEcn)
     {
         // 当发生拥塞时，如果当前窗口大于2，则减半；否则只减1
-        if (m_cwnd > 2) {
-            m_cwnd = m_cwnd / 2;
-        } else if (m_cwnd > 1) {
-            m_cwnd--;
+        if (m_virtualCwnd >= 2.0) {
+            m_virtualCwnd = m_virtualCwnd / 2;
+        } else {
+            m_virtualCwnd = 1.0;
         }
+        
+        m_cwnd = static_cast<uint32_t>(m_virtualCwnd);
+        if (m_cwnd > m_maxCwnd) {
+            m_cwnd = m_maxCwnd;
+        }
+        m_cwndTrace = m_cwnd;
     }
-    else
-    {
-        // 当没有拥塞时，如果当前窗口为1，则直接加2；否则加1
-        m_cwnd++;
+    else{
+        // Ensure floating-point division by using 1.0
+        m_virtualCwnd += 1.0 / m_cwnd; 
+        m_cwnd = static_cast<uint32_t>(m_virtualCwnd);
+        if (m_cwnd > m_maxCwnd) {
+            m_cwnd = m_maxCwnd;
+            // Ensure virtualCwnd doesn't exceed maxCwnd representation
+            m_virtualCwnd = static_cast<double>(m_maxCwnd); 
+        }
+        m_cwndTrace = m_cwnd;
     }
-
-    if (m_cwnd > m_maxCwnd) {
-        m_cwnd = m_maxCwnd;
-    }
-    m_cwndTrace = m_cwnd;
-    
-    NS_LOG_INFO("ProcessCongestion - Time: " << Simulator::Now().GetSeconds() 
-                << " isEcn: " << isEcn 
-                << " oldCwnd: " << oldCwnd 
-                << " newCwnd: " << m_cwnd);
 }
 
 bool

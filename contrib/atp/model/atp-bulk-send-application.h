@@ -119,6 +119,9 @@ class ATPBulkSendApplication : public Application
      */
     void SetSocket(Ptr<Socket> socket);
 
+    void SetFaninDegree(uint8_t faninDegree);
+    uint8_t GetFaninDegree() const;
+
     void SetEnableATPTag(bool enableATPTag);
     bool GetEnableATPTag() const;
 
@@ -159,6 +162,7 @@ class ATPBulkSendApplication : public Application
     bool m_enableATPTag{false};          //!< Enable or disable the ATPTag
     uint32_t m_jobId{0};                 //!< Job ID
     uint8_t m_workerId{0};               //!< Worker ID
+    uint8_t m_faninDegree{0};             //!< Fanin degree
 
     /// Traced Callback: sent packets
     TracedCallback<Ptr<const Packet>> m_txTrace;

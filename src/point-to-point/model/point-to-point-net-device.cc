@@ -341,6 +341,19 @@ PointToPointNetDevice::Receive(Ptr<Packet> packet)
         // device because it is so simple, but this is not usually the case in
         // more complicated devices.
         //
+        // 添加接收日志
+        /*
+        ATPTag atpTag;
+        bool hasAtpTag = packet->PeekPacketTag(atpTag);
+        if (hasAtpTag) {
+            NS_LOG_INFO("RECEIVING: Node=" << m_node->GetId() << 
+                       " Interface=" << m_ifIndex <<
+                       " Time=" << Simulator::Now().GetMicroSeconds() << 
+                       " Packet_type=" << (atpTag.GetPacketType() == ATPTag::ACK ? "ACK" : "DATA") <<
+                       " JobId=" << (int)atpTag.GetJobId() <<
+                       " SeqNum=" << (int)atpTag.GetSeqNumber());
+        }
+        */
         m_snifferTrace(packet);
         m_promiscSnifferTrace(packet);
         m_phyRxEndTrace(packet);
@@ -543,6 +556,20 @@ PointToPointNetDevice::Send(Ptr<Packet> packet, const Address& dest, uint16_t pr
     //
     if (m_queue->Enqueue(packet))
     {
+        // 添加简单日志显示当前队列状态
+        /*
+        if (hasAtpTag) {
+            NS_LOG_INFO("Node=" << m_node->GetId() << 
+                       " Interface=" << m_ifIndex <<
+                       " Time=" << Simulator::Now().GetMicroSeconds() << 
+                       "s Queue_size=" << queueSize << 
+                       " Packet_type=" << (atpTag.GetPacketType() == ATPTag::ACK ? "ACK" : "DATA") <<
+                       " JobId=" << (int)atpTag.GetJobId() <<
+                       " SeqNum=" << (int)atpTag.GetSeqNumber() <<
+                       " Dest=" << dest);
+        }
+        */
+
         //
         // If the channel is ready for transition we send the packet right now
         //

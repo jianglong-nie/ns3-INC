@@ -28,6 +28,9 @@ class ATPTag : public Tag
 
     ATPTag();
 
+    void SetFaninDegree(uint8_t faninDegree);
+    uint8_t GetFaninDegree() const;
+
     void SetWorkerId(uint8_t workerId);
     uint8_t GetWorkerId() const;
 
@@ -79,6 +82,7 @@ class ATPTag : public Tag
     void CopyFrom(const ATPTag& other);
 
   private:
+    uint8_t m_faninDegree{0};
     uint8_t m_workerId{0};
     uint8_t m_atpPacketType{0};
     uint8_t m_jobId{0};    //!< Job ID
