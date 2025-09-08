@@ -1,58 +1,64 @@
-# ATP Module for ns-3
+# INC (In-Network Collectives) Simulator for ns-3
 
-This module implements a custom transport protocol (ATP) for ns-3 network simulator.
+An ns-3 based simulator for In-Network Collectives (INC), built on an ATP-like transport to study how in-switch aggregation accelerates distributed training communication at scale.
+Codebase: contrib/atp
+Core implementation: contrib/atp/model
 
-## Overview
+## Research Goal
 
-The ATP module provides a complete implementation of a custom transport protocol, including:
-- Core protocol implementation
-- Network devices (CSMA and Bridge)
-- Application layer support
-- Routing capabilities
-- Various helper classes for easy configuration
+Evaluate the acceleration benefits of INC protocols on large-scale network topologies for distributed training workloads.
 
-## Components
+## Key Features
+* ATP-like L4 protocol with in-switch aggregation.
+* Explicit modeling of senders and receivers.
+* Per-job traffic tagging and accounting.
+* Switch memory contention and hash-collision handling.
+* Runnable examples demonstrating two concurrent jobs.
 
-### Core Protocol
-- Basic ATP protocol implementation
-- Protocol headers and tags
-- L4 protocol layer
-- Socket implementation
-- Congestion control
-- Transmission buffer
+## Architecture and Components
 
-### Network Devices
-- ATP CSMA device and channel
-- ATP Bridge device and channel
+### ATPL4Protocol
+* Implements the ATP-like transport at L4.
+* Emulates in-switch aggregation behavior.
+* Models multi-job contention for limited switch memory.
+* Handles aggregator hashing and collision resolution.
 
-### Applications
-- Bulk send application
-- Packet sink application
+### ATPSocket
+* Application-level API to the INC transport.
+* Connection management: Connect, Listen.
+* Data I/O: Send, Receive.
+* Flow control, ACK handling, timeout/retransmission.
 
-### Routing
-- Static routing implementation
+### ATPTxBuffer (sender buffer)
 
-### Helper Classes
-- Various helper classes for configuration
-- Data aggregator
+* Queues outbound packets.
+* Maintains congestion window (cwnd).
+* Retransmission management.
 
-## Dependencies
-- ns-3 Internet module
-- ns-3 Applications module
-- ns-3 CSMA module
-- ns-3 Bridge module
+### ATPBulkSendApplication
 
-## Building
-This module is part of the ns-3 build system. To build it:
+* Bulk data sender driving throughput-oriented transfers.
+* Works with ATPSocket and tags traffic per job.
 
-1. Configure ns-3 with this module enabled
-2. Build ns-3 as usual
+### ATPPacketSink
 
-## Usage
-The module provides helper classes to simplify the configuration and usage of ATP components in ns-3 simulations.
+* Receiver application that consumes packets.
+* Reports total bytes and per-job bytes.
 
-## Testing
-The module includes a test suite (`test/atp-test-suite.cc`) for testing the implementation.
+### ATPTag
 
-## License
-This module is part of ns-3 and follows the same licensing terms as ns-3. 
+* Annotates packets with jobId, seqNum, and fan-in degree (faninDegree).
+
+## INC in the Switch
+
+* Aggregation is performed inside switches via protocol hooks and routing helpers.
+* Fan-in degree config determines how many workers contribute to an aggregate.
+* Hashing based on (jobId, seqNum) maps flows to aggregator slots.
+* Memory constraints and collisions are modeled to reflect realistic switch behavior.
+## Example
+Two Jobs Communicating Concurrently
+Topology with multiple workers per job sending to a common sink;
+![INC Example](doc/two-jobs.png)
+Demonstrates per-job accounting, aggregation, ECN thresholding, and cwnd traces.
+![Congestion Window and Queue Size](doc/cwnd.png)
+![Throughput](doc/throughput.png)
