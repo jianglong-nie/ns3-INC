@@ -91,7 +91,7 @@ main(int argc, char* argv[])
     SinkBytesStream_job1.open("atp-result/trace-p2p/n0-job1-sinkBytes-p2p.txt", std::ofstream::out | std::ofstream::trunc);
     
 
-    uint32_t maxBytes = 2480000;
+    uint32_t maxBytes = 248;
     Time stopTime = Seconds(1.21);
 
     //
@@ -121,7 +121,7 @@ main(int argc, char* argv[])
 
     // 设置n2上与n2连接部分的队列阈值
     Ptr<PointToPointNetDevice> n2Device = DynamicCast<PointToPointNetDevice>(d2d3.Get(0));
-    n2Device->SetThreshold(1);
+    n2Device->SetThreshold(10);
 
 
     //

@@ -134,7 +134,7 @@ main(int argc, char* argv[])
     // LogComponentEnable("PacketSink", LOG_LEVEL_ALL);
     // LogComponentEnable("ATPSocket", LOG_LEVEL_ALL);
     //LogComponentEnable("ATPL4Protocol", LOG_LEVEL_ALL);
-    LogComponentEnable("PointToPointNetDevice", LOG_LEVEL_INFO);
+    //LogComponentEnable("PointToPointNetDevice", LOG_LEVEL_INFO);
     
     // 在程序开始时打开文件流，使用trunc模式清空文件
     cwndStream_n0_job1.open("atp-result/trace-p2p-2w5w/n0-job1-cwnd-p2p-2w5w.txt", std::ofstream::out | std::ofstream::trunc);
@@ -150,10 +150,10 @@ main(int argc, char* argv[])
     
 
     uint32_t maxBytes = 0;
-    Time stopTime = Seconds(1.0) + MicroSeconds(20000); // 9.6us为一个rtt时间，近似为10us，这里跑2000个rtt
+    Time stopTime = Seconds(1.0) + MicroSeconds(2000); // 9.6us为一个rtt时间，近似为10us，这里跑2000个rtt
 
-    // 设置job1和job2初始拥塞窗口
     uint64_t initialTimestamp = 1000000;
+    // 设置job1和job2初始拥塞窗口
     uint32_t job1_initCwnd = 1;
     uint32_t job2_initCwnd = 1;
 
@@ -214,7 +214,7 @@ main(int argc, char* argv[])
     n5Device->SetQueue(customQueue);
 
     // 设置n5上与n6连接部分的 ECN 阈值
-    n5Device->SetThreshold(560); // 现在可以安全地设置为 100
+    n5Device->SetThreshold(200); // 现在可以安全地设置为 100
 
     // 启动队列长度采样
     Simulator::Schedule(Seconds(0.9), &SampleQueueSize, n5Device);
