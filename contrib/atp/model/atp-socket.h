@@ -3,7 +3,6 @@
 
 #include "atp-tag.h"
 #include "atp-tx-buffer.h"
-#include "atp-congestion-control.h"
 #include "atp-aggregator.h"
 
 #include "ns3/socket.h"
@@ -169,7 +168,6 @@ class ATPSocket : public Socket
     std::vector<Aggregator> m_aggregators;          // 聚合器
 
     // 拥塞控制
-    Ptr<ATPCC> m_congestionControl;    // 拥塞控制算法
     uint32_t m_nextSeqNo;              // 下一个序列号
     uint32_t m_highestRxSeqNo;         // 最高接收序列号
     uint32_t m_initCwnd;               // 初始拥塞窗口

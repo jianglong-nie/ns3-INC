@@ -106,7 +106,7 @@ main(int argc, char* argv[])
     queueSizeStream_n2.open("atp-result/trace-p2p-1w1w/n2-queueSize-p2p-1w1w.txt", std::ofstream::out | std::ofstream::trunc);
     
 
-    uint32_t maxBytes = 0;
+    uint32_t maxBytes = 248;
     Time stopTime = Seconds(1.0) + MicroSeconds(10000); // 约8us为一个rtt时间
 
     // 设置job1和job2初始拥塞窗口

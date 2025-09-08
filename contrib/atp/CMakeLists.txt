@@ -11,32 +11,19 @@ if(${ENABLE_EXAMPLES})
 endif()
 
 set(source_files
-    model/atp.cc
-    helper/atp-helper.cc
-
     model/atp-bulk-send-application.cc
     helper/atp-bulk-send-helper.cc
 
     model/atp-header.cc
     model/atp-tag.cc
 
-    model/atp-bridge-channel.cc
-    model/atp-bridge-net-device.cc
-    helper/atp-bridge-helper.cc
-
     model/atp-l4-protocol.cc
     model/atp-tx-buffer.cc
     model/atp-socket.cc
     model/atp-socket-factory.cc
 
-    model/atp-congestion-control.cc
-
     model/atp-packet-sink.cc
     helper/atp-packet-sink-helper.cc
-
-    model/atp-csma-channel.cc
-    model/atp-csma-net-device.cc
-    helper/atp-csma-helper.cc
 
     model/atp-aggregator.cc
 
@@ -45,47 +32,29 @@ set(source_files
 )
 
 set(header_files
-    model/atp.h
-    helper/atp-helper.h
-
     model/atp-bulk-send-application.h
     helper/atp-bulk-send-helper.h
 
     model/atp-header.h
     model/atp-tag.h
 
-    model/atp-bridge-channel.h
-    model/atp-bridge-net-device.h
-    helper/atp-bridge-helper.h
-
     model/atp-l4-protocol.h
     model/atp-tx-buffer.h
     model/atp-socket.h
     model/atp-socket-factory.h
 
-    model/atp-congestion-control.h
-
     model/atp-packet-sink.h
     helper/atp-packet-sink-helper.h
-
-    model/atp-csma-channel.h
-    model/atp-csma-net-device.h
-    helper/atp-csma-helper.h
 
     model/atp-aggregator.h
 
     model/atp-static-routing.h
     helper/atp-static-routing-helper.h
 )
-
 build_lib(
     LIBNAME atp
     SOURCE_FILES ${source_files}
     HEADER_FILES ${header_files}
     LIBRARIES_TO_LINK ${libinternet}
                       ${libapplications}
-                      ${libcsma}
-                      ${libbridge}
-    TEST_SOURCES test/atp-test-suite.cc
-                 ${examples_as_tests_sources}
 )
