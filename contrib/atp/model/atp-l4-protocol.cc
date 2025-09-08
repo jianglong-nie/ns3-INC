@@ -252,7 +252,7 @@ ATPL4Protocol::AggregatePacket(Ptr<Packet> packet)
             aggregatedPacket->AddPacketTag(newTag);
 
             // 重置聚合器
-            aggregator.Reset();
+            //aggregator.Reset();
 
             return aggregatedPacket;
         }
@@ -281,6 +281,19 @@ ATPL4Protocol::AggregateStart(Ptr<Packet> packet)
         {
             NS_LOG_INFO("Packet is waiting for aggregation.");
         }
+    }
+    else if (hasATPTag && atpTag.GetPacketType() == ATPTag::ACK)
+    {
+        NS_LOG_INFO("ATPL4Protocol: Reset aggregator for jobId " << static_cast<int>(atpTag.GetJobId())
+                                               << " seqNum " << static_cast<int>(atpTag.GetSeqNumber()));
+        std::size_t index = Aggregator::HashToIndex(atpTag.GetJobId(), atpTag.GetSeqNumber(), MAX_AGGREGATORS);
+    
+        // 获取对应的聚合器
+        Aggregator& aggregator = m_aggregators[index];
+
+        aggregator.Reset();
+        aggregatedPacket = packet->Copy();
+
     }
     else
     {
