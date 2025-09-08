@@ -190,8 +190,11 @@ class PointToPointNetDevice : public NetDevice
     void SetThreshold(uint32_t threshold) { m_threshold = threshold; }
     uint32_t GetThreshold() const { return m_threshold; }
 
+    void SetEnableEcn(bool enable) { enableEcn = enable; }
+    bool GetEnableEcn() const { return enableEcn; }
+
   protected:
-    /**
+    /**image.png
      * \brief Handler for MPI receive event
      *
      * \param p Packet received
@@ -451,6 +454,7 @@ class PointToPointNetDevice : public NetDevice
     static uint16_t EtherToPpp(uint16_t protocol);
 
     uint32_t m_threshold = 20000;
+    bool enableEcn = false;
 };
 
 } // namespace ns3

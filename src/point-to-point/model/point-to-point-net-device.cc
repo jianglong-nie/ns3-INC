@@ -342,18 +342,18 @@ PointToPointNetDevice::Receive(Ptr<Packet> packet)
         // more complicated devices.
         //
         // 添加接收日志
-        /*
+        
         ATPTag atpTag;
         bool hasAtpTag = packet->PeekPacketTag(atpTag);
         if (hasAtpTag) {
-            NS_LOG_INFO("RECEIVING: Node=" << m_node->GetId() << 
-                       " Interface=" << m_ifIndex <<
-                       " Time=" << Simulator::Now().GetMicroSeconds() << 
-                       " Packet_type=" << (atpTag.GetPacketType() == ATPTag::ACK ? "ACK" : "DATA") <<
+            NS_LOG_INFO("Receive Node=" << m_node->GetId() <<
+                       " Device Id=" << m_ifIndex <<
+                       " Time=" << Simulator::Now().GetNanoSeconds() << 
+                       " Packet Type=" << (atpTag.GetPacketType() == ATPTag::DATA ? "DATA" : atpTag.GetPacketType() == ATPTag::ACK ? "ACK" : atpTag.GetPacketType() == ATPTag::AGG ? "AGG" : "UNKNOWN") <<
                        " JobId=" << (int)atpTag.GetJobId() <<
                        " SeqNum=" << (int)atpTag.GetSeqNumber());
         }
-        */
+        
         m_snifferTrace(packet);
         m_promiscSnifferTrace(packet);
         m_phyRxEndTrace(packet);
@@ -524,9 +524,16 @@ PointToPointNetDevice::Send(Ptr<Packet> packet, const Address& dest, uint16_t pr
     // 检查队列大小是否超过阈值
     ATPTag atpTag;
     bool hasAtpTag = packet->PeekPacketTag(atpTag);
-
-    // Check if queue size exceeds threshold
-    if (hasAtpTag && queueSize >= m_threshold)
+    if (hasAtpTag) {
+        NS_LOG_INFO( "Send Node=" << m_node->GetId() <<
+        " DeviceId=" << m_ifIndex <<
+        " Time=" << Simulator::Now().GetNanoSeconds() << 
+        " PacketType=" << (atpTag.GetPacketType() == ATPTag::DATA ? "DATA" : atpTag.GetPacketType() == ATPTag::ACK ? "ACK" : atpTag.GetPacketType() == ATPTag::AGG ? "AGG" : "UNKNOWN") <<
+        " JobId=" << (int)atpTag.GetJobId() <<
+        " SeqNum=" << (int)atpTag.GetSeqNumber());
+    }
+    // Check if queue size exceeds threshold - ONLY for DATA packets, not ACK packets
+    if (enableEcn && queueSize >= m_threshold)
     {
         packet->RemovePacketTag(atpTag);
         atpTag.SetEcn(1);
