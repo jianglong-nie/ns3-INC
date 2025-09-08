@@ -671,7 +671,7 @@ ATPSocket::ReceiveAck(ATPTag atpTag)
         // ECN标记且计时器未运行时，减半窗口并启动计时器
         if (isEcn && !m_ecnTimerRunning) {
             m_txBuffer->ProcessCongestion(true);
-            m_ecnTimerEvent = Simulator::Schedule(MicroSeconds(40), &ATPSocket::ResetEcnTimer, this);
+            m_ecnTimerEvent = Simulator::Schedule(MicroSeconds(200), &ATPSocket::ResetEcnTimer, this);
             m_ecnTimerRunning = true;
         } 
         if (!isEcn) {
@@ -691,7 +691,7 @@ ATPSocket::ReceiveAck(ATPTag atpTag)
         if (packet != nullptr) {
             if (!m_ecnTimerRunning) {
                 m_txBuffer->ProcessCongestion(true);
-                m_ecnTimerEvent = Simulator::Schedule(MicroSeconds(40), &ATPSocket::ResetEcnTimer, this);
+                m_ecnTimerEvent = Simulator::Schedule(MicroSeconds(200), &ATPSocket::ResetEcnTimer, this);
                 m_ecnTimerRunning = true;
             }
             // 执行重传函数
@@ -715,6 +715,7 @@ ATPSocket::SendAck(ATPTag atpTag, Ipv4Header ipHeader)
     ackTag.SetEcn(atpTag.GetEcn());
     ackTag.SetJobId(atpTag.GetJobId());
     ackTag.SetAckNumber(atpTag.GetSeqNumber());
+    ackTag.SetSeqNumber(atpTag.GetSeqNumber());  // 添加这行：设置seqNumber与原始数据包一致
 
     // ack包的源地址和目的地址与发送的包相反
     Ipv4Address ackSource = ipHeader.GetDestination();
@@ -762,6 +763,7 @@ ATPSocket::SendMultiAck(const ATPTag& atpTag, const Ipv4Header& ipHeader)
         ackTag.SetEcn(atpTag.GetEcn());
         ackTag.SetJobId(atpTag.GetJobId());
         ackTag.SetAckNumber(atpTag.GetSeqNumber());
+        ackTag.SetSeqNumber(atpTag.GetSeqNumber());  // 添加这行：设置seqNumber与原始数据包一致
         
         // ack包的源地址和目的地址与发送的包相反
         Ipv4Address ackSource = ipHeader.GetDestination();

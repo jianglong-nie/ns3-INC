@@ -165,7 +165,7 @@ class ATPSocket : public Socket
     uint32_t m_txAvailable;                         // 发送缓冲区可发送数据量
     Ptr<ATPTxBuffer> m_txBuffer;                    // 发送缓冲区，自定义的类型
     std::queue<std::pair<Ptr<Packet>, Address>> m_rxBuffer; // 接收缓冲区，是个队列
-    uint32_t MAX_AGGREGATORS = 8192;
+    uint32_t MAX_AGGREGATORS = 8192 * 8;
     std::vector<Aggregator> m_aggregators;          // 聚合器
 
     // 拥塞控制
