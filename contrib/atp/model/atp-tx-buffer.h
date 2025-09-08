@@ -136,16 +136,6 @@ class ATPTxBuffer : public Object
      */
     void UpdateCwndLeftBound(uint32_t ackNum);
 
-    /**
-     * \brief 处理窗口自动增长
-     */
-    void HandleWindowIncrease();
-
-    /**
-     * \brief 启动窗口增长定时器
-     */
-    void StartWindowIncreaseTimer();
-
     typedef std::queue<ATPTxItem*> PacketQueue; //!< 数据包队列类型
     
     PacketQueue m_pendingQueue;         //!< 待发送数据队列

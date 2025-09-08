@@ -28,7 +28,6 @@ ATPTxBuffer::ATPTxBuffer()
     m_cwnd(1)              //!< 拥塞窗口大小
 {
   NS_LOG_FUNCTION(this);
-  //StartWindowIncreaseTimer();
 }
 
 ATPTxBuffer::~ATPTxBuffer()
@@ -255,36 +254,6 @@ ATPTxBuffer::ProcessUnorderedAck(uint32_t packetId)
 }
 
 void
-ATPTxBuffer::HandleWindowIncrease()
-{
-    NS_LOG_FUNCTION(this);
-    
-    // 增加虚拟窗口大小
-    m_virtualCwnd += 1.0;
-    
-    // 更新实际窗口大小
-    m_cwnd = static_cast<uint32_t>(m_virtualCwnd);
-    if (m_cwnd > m_maxCwnd) {
-        m_cwnd = m_maxCwnd;
-        m_virtualCwnd = static_cast<double>(m_maxCwnd);
-    }
-    m_cwndTrace = m_cwnd;
-
-    // 安排下一次增长
-    StartWindowIncreaseTimer();
-}
-
-void
-ATPTxBuffer::StartWindowIncreaseTimer()
-{
-    NS_LOG_FUNCTION(this);
-    // Use MakeEvent to potentially resolve overload issues
-    m_windowIncreaseEvent = Simulator::Schedule(MicroSeconds(9),
-                                                    &ATPTxBuffer::HandleWindowIncrease,
-                                                    this);
-}
-
-void
 ATPTxBuffer::ProcessCongestion(bool isEcn)
 {
     NS_LOG_FUNCTION(this << isEcn);
@@ -306,7 +275,7 @@ ATPTxBuffer::ProcessCongestion(bool isEcn)
     }
     else{
         // Ensure floating-point division by using 1.0
-        m_virtualCwnd += 1.0 / m_cwnd; 
+        m_virtualCwnd += 1.0 / m_cwnd;
         m_cwnd = static_cast<uint32_t>(m_virtualCwnd);
         if (m_cwnd > m_maxCwnd) {
             m_cwnd = m_maxCwnd;
