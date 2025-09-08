@@ -58,7 +58,7 @@ Evaluate the acceleration benefits of INC protocols on large-scale network topol
 ## Example
 Two Jobs Communicating Concurrently
 Topology with multiple workers per job sending to a common sink;
-![INC Example](doc/two-jobs.png)
+![INC Example](contrib/atp/doc/two-jobs.png)
 Demonstrates per-job accounting, aggregation, ECN thresholding, and cwnd traces.
-![Congestion Window and Queue Size](doc/cwnd.png)
-![Throughput](doc/throughput.png)
+![Congestion Window and Queue Size](contrib/atp/doc/cwnd.png)
+![Throughput](contrib/atp/doc/throughput.png)
