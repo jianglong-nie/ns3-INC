@@ -70,15 +70,18 @@ main(int argc, char* argv[])
     // LogComponentEnable("ATPL4Protocol", LOG_LEVEL_ALL);
     // LogComponentEnable("PointToPointNetDevice", LOG_LEVEL_INFO);
 
-    uint32_t maxBytes = 100;
-    Time stopTime = Seconds(1.0) + MicroSeconds(1000); // 约8us为一个rtt时间
+    cwndStream_job1.open("atp-result/trace-ha-singlejob/job1-cwnd-trace-ha-singlejob.txt", std::ofstream::out | std::ofstream::trunc);
+    SinkBytesStream_job1.open("atp-result/trace-ha-singlejob/job1-sinkBytes-trace-ha-singlejob.txt", std::ofstream::out | std::ofstream::trunc);
+
+    uint32_t maxBytes = 0;
+    Time stopTime = Seconds(1.0) + MicroSeconds(100000); // 约8us为一个rtt时间
 
     // 设置job1和job2初始拥塞窗口
-    //uint64_t initialTimestamp = 1000000;
+    uint64_t initialTimestamp = 1000000;
     uint32_t job1_initCwnd = 1;
 
     // 在文件打开后，写入初始拥塞窗口值
-    //cwndStream_job1 << initialTimestamp << "\t" << job1_initCwnd << std::endl;
+    cwndStream_job1 << initialTimestamp << "\t" << job1_initCwnd << std::endl;
 
 
     //
@@ -131,9 +134,9 @@ main(int argc, char* argv[])
     n2Device->SetQueue(customQueue);
     */
 
-    s0s2Device->SetThreshold(300);
-    s1s2Device->SetThreshold(300);
-    s2psDevice->SetThreshold(300);
+    s0s2Device->SetThreshold(80);
+    s1s2Device->SetThreshold(80);
+    s2psDevice->SetThreshold(80);
 
     s0s2Device->SetEnableEcn(true);
     s1s2Device->SetEnableEcn(true);
@@ -372,7 +375,10 @@ main(int argc, char* argv[])
     sinkATPSocket->AddAddressMapping(1, ip_w1s0.GetAddress(0), sendPort);  // job1 - w1
     sinkATPSocket->AddAddressMapping(1, ip_w2s1.GetAddress(0), sendPort);  // job1 - w2
     sinkATPSocket->AddAddressMapping(1, ip_w3s1.GetAddress(0), sendPort);  // job1 - w3
-    
+
+    // 开始测量
+    Simulator::Schedule(Seconds(1.0), &Measurement, sinkApp);
+
     //
     // Now, do the actual simulation.
     //
@@ -381,6 +387,8 @@ main(int argc, char* argv[])
     Simulator::Run();
     Simulator::Destroy();
     NS_LOG_INFO("Done.");
+
+    cwndStream_job1.close();
 
     std::cout << "Total Bytes Received: " << sinkApp->GetTotalRx() << std::endl;
 
