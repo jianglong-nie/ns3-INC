@@ -488,6 +488,13 @@ ATPStaticRouting::RouteOutput(Ptr<Packet> p,
     return rtentry;
 }
 
+Ptr<ATPL4Protocol>
+ATPStaticRouting::GetATPL4Protocol()
+{
+    Ptr<ATPL4Protocol> atpL4 = m_ipv4->GetObject<ATPL4Protocol>();
+    return atpL4;
+}
+
 bool
 ATPStaticRouting::RouteInput(Ptr<const Packet> p,
                               const Ipv4Header& ipHeader,

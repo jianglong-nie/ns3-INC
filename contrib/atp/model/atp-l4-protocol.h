@@ -87,6 +87,7 @@ class ATPL4Protocol : public IpL4Protocol
     void SetEnableAggregation(bool enable);
     Ptr<Packet> AggregatePacket(Ptr<Packet> packet);
     Ptr<Packet> AggregateStart(Ptr<Packet> packet);
+    void SetAggregatorFaninDegree(uint8_t faninDegree);
   
   protected:
     void DoDispose() override;

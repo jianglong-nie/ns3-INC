@@ -352,6 +352,8 @@ class ATPStaticRouting : public Ipv4RoutingProtocol
 
     void SetEnableAggregation(bool enable) { m_enableAggregation = enable; };
 
+    Ptr<ATPL4Protocol> GetATPL4Protocol();
+
   protected:
     void DoDispose() override;
 

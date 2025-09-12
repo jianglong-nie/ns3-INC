@@ -204,6 +204,16 @@ ATPL4Protocol::SetEnableAggregation(bool enable)
     m_enableAggregation = enable;
 }
 
+void
+ATPL4Protocol::SetAggregatorFaninDegree(uint8_t faninDegree)
+{
+    NS_LOG_FUNCTION(this << faninDegree);
+    for (auto& aggregator : m_aggregators)
+    {
+        aggregator.m_faninDegree = faninDegree;
+    }
+}
+
 Ptr<Packet>
 ATPL4Protocol::AggregatePacket(Ptr<Packet> packet)
 {
@@ -231,7 +241,7 @@ ATPL4Protocol::AggregatePacket(Ptr<Packet> packet)
         if (aggregator.IsEmpty()) {
             aggregator.m_jobId = atpTag.GetJobId();
             aggregator.m_seqNum = atpTag.GetSeqNumber();
-            aggregator.m_faninDegree = atpTag.GetFaninDegree();
+            // aggregator.m_faninDegree = atpTag.GetFaninDegree();
         }
 
         // 添加数据包到聚合器
@@ -240,19 +250,32 @@ ATPL4Protocol::AggregatePacket(Ptr<Packet> packet)
         {
             // 聚合完成，发送聚合后的数据包
             Ptr<Packet> aggregatedPacket = aggregator.GetAggregatedPacket();
-            NS_LOG_INFO("Aggregated packet sent with jobId = " << static_cast<int>(atpTag.GetJobId())
-                                                               << ", seqNum = " << static_cast<int>(atpTag.GetSeqNumber()));
-            
+
             ATPTag newTag;
             aggregatedPacket->PeekPacketTag(newTag);
             aggregatedPacket->RemovePacketTag(newTag);
 
             // 改成聚合完成标志AGG
-            newTag.SetPacketType(ATPTag::AGG);
+            if (aggregator.m_faninDegree == newTag.GetFaninDegree())
+            {
+                newTag.SetPacketType(ATPTag::AGG);
+            }
+            else
+            {
+                newTag.SetPacketType(ATPTag::DATA);
+            }
+            newTag.SetWorkerId(aggregator.m_faninDegree);
             aggregatedPacket->AddPacketTag(newTag);
 
             // 重置聚合器
             //aggregator.Reset();
+
+            ATPTag aggcompletag;
+            aggregatedPacket->PeekPacketTag(aggcompletag);
+
+            NS_LOG_INFO("Aggregated complete, packet sent with jobId = " << static_cast<int>(aggcompletag.GetJobId())
+            << ", seqNum = " << static_cast<int>(aggcompletag.GetSeqNumber()) << ", workerid = " << static_cast<int>(aggcompletag.GetWorkerId()));
+
 
             return aggregatedPacket;
         }
