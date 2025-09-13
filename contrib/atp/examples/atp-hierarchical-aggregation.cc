@@ -52,7 +52,7 @@ Measurement(Ptr<ATPPacketSink> sink)
     lastTimeJob1Bytes = currentTimeJob1Bytes;
                             
     // 调度下一个测量
-    Simulator::Schedule(MicroSeconds(1000), &Measurement, sink);
+    Simulator::Schedule(MicroSeconds(100), &Measurement, sink);
 }
 
 static void
@@ -74,7 +74,7 @@ main(int argc, char* argv[])
     SinkBytesStream_job1.open("atp-result/trace-ha-singlejob/job1-sinkBytes-trace-ha-singlejob.txt", std::ofstream::out | std::ofstream::trunc);
 
     uint32_t maxBytes = 0;
-    Time stopTime = Seconds(1.0) + MicroSeconds(100000); // 约8us为一个rtt时间
+    Time stopTime = Seconds(1.0) + MicroSeconds(10000); // 约8us为一个rtt时间
 
     // 设置job1和job2初始拥塞窗口
     uint64_t initialTimestamp = 1000000;
@@ -119,12 +119,12 @@ main(int argc, char* argv[])
 
     
     // 设置s0s2, s1s2, s2ps的队列阈值
-    Ptr<PointToPointNetDevice> s0s2Device = DynamicCast<PointToPointNetDevice>(dev_s0s2.Get(0));
-    Ptr<PointToPointNetDevice> s1s2Device = DynamicCast<PointToPointNetDevice>(dev_s1s2.Get(0));
-    Ptr<PointToPointNetDevice> s2psDevice = DynamicCast<PointToPointNetDevice>(dev_s2ps.Get(0));
-    NS_ASSERT(s0s2Device != nullptr); // 确保转换成功
-    NS_ASSERT(s1s2Device != nullptr); // 确保转换成功
-    NS_ASSERT(s2psDevice != nullptr); // 确保转换成功
+    Ptr<PointToPointNetDevice> s0Device = DynamicCast<PointToPointNetDevice>(dev_s0s2.Get(0));
+    Ptr<PointToPointNetDevice> s1Device = DynamicCast<PointToPointNetDevice>(dev_s1s2.Get(0));
+    Ptr<PointToPointNetDevice> s2Device = DynamicCast<PointToPointNetDevice>(dev_s2ps.Get(0));
+    NS_ASSERT(s0Device != nullptr); // 确保转换成功
+    NS_ASSERT(s1Device != nullptr); // 确保转换成功
+    NS_ASSERT(s2Device != nullptr); // 确保转换成功
     /*
     // 创建一个新的、容量更大的队列
     Ptr<Queue<Packet>> customQueue = CreateObject<DropTailQueue<Packet>>();
@@ -134,13 +134,13 @@ main(int argc, char* argv[])
     n2Device->SetQueue(customQueue);
     */
 
-    s0s2Device->SetThreshold(80);
-    s1s2Device->SetThreshold(80);
-    s2psDevice->SetThreshold(80);
+    s0Device->SetThreshold(2);
+    s1Device->SetThreshold(2);
+    s2Device->SetThreshold(2);
 
-    s0s2Device->SetEnableEcn(true);
-    s1s2Device->SetEnableEcn(true);
-    s2psDevice->SetEnableEcn(true);
+    s0Device->SetEnableEcn(true);
+    s1Device->SetEnableEcn(true);
+    s2Device->SetEnableEcn(true);
 
     //
     // Install the internet stack on the nodes

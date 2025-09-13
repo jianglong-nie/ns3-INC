@@ -914,6 +914,7 @@ ATPSocket::ForwardUp(Ptr<Packet> packet,
         NS_LOG_INFO("This is a aggregated packet");
 
         // 释放m_aggregators中与当前数据包的jobId和seqNum 相等的聚合器
+        /*
         std::size_t index = Aggregator::HashToIndex(atpTag.GetJobId(), atpTag.GetSeqNumber(), MAX_AGGREGATORS);
         Aggregator& aggregator = m_aggregators[index];
 
@@ -923,6 +924,7 @@ ATPSocket::ForwardUp(Ptr<Packet> packet,
         {
             aggregator.Reset();
         }
+        */
 
         if ((m_rxAvailable - packet->GetSize()) >= 0)
         {

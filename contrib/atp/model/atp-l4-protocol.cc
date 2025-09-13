@@ -260,11 +260,6 @@ ATPL4Protocol::AggregatePacket(Ptr<Packet> packet)
             {
                 newTag.SetPacketType(ATPTag::AGG);
             }
-            else
-            {
-                newTag.SetPacketType(ATPTag::DATA);
-            }
-            newTag.SetWorkerId(aggregator.m_faninDegree);
             aggregatedPacket->AddPacketTag(newTag);
 
             // 重置聚合器
