@@ -73,7 +73,7 @@ Aggregator::Reset()
 {
     NS_LOG_FUNCTION(this);
     m_workerIdAgg = 0b00000000;
-    m_faninDegree = 0b00000000;
+    //m_faninDegree = 0b00000000;
     m_jobId = 0;
     m_seqNum = 0;
     m_count = 0;
