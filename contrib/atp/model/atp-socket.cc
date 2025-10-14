@@ -55,6 +55,9 @@ ATPSocket::ATPSocket()
     m_shutdownSend = false;
     m_shutdownRecv = false;
     m_connected = false;
+
+    // 统计所有发送的数据
+    m_totalTxBytes = 0;
     
     // 初始拥塞控制窗口
     m_initCwnd = 1;
@@ -148,6 +151,13 @@ ATPSocket::GetTxAvailable() const
 {
     NS_LOG_FUNCTION(this);
     return m_txAvailable;
+}
+
+uint64_t
+ATPSocket::GetTotalTxBytes() const
+{
+    NS_LOG_FUNCTION(this);
+    return m_totalTxBytes;
 }
 
 Socket::SocketErrno
@@ -552,7 +562,7 @@ int
 ATPSocket::DoSend(Ptr<Packet> p)
 {
     NS_LOG_FUNCTION(this << p);
-
+    m_totalTxBytes += p->GetSize();
     if (Ipv4Address::IsMatchingType(m_defaultAddress))
     {
         return DoSendTo(p, Ipv4Address::ConvertFrom(m_defaultAddress), m_defaultPort);
@@ -819,7 +829,7 @@ ATPSocket::AggregatePacket(Ptr<Packet> packet,
         if (aggregator.IsEmpty()) {
             aggregator.m_jobId = atpTag.GetJobId();
             aggregator.m_seqNum = atpTag.GetSeqNumber();
-            aggregator.m_faninDegree = atpTag.GetFaninDegree();
+            aggregator.m_jobFaninDegree[atpTag.GetJobId()] = atpTag.GetFaninDegree();
             NS_LOG_INFO("Using empty aggregator at index " << index 
                         << " for jobId " << static_cast<int>(atpTag.GetJobId())
                         << " seqNum " << static_cast<int>(atpTag.GetSeqNumber()));

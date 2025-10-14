@@ -205,12 +205,12 @@ ATPL4Protocol::SetEnableAggregation(bool enable)
 }
 
 void
-ATPL4Protocol::SetAggregatorFaninDegree(uint8_t faninDegree)
+ATPL4Protocol::SetAggregatorFaninDegree(uint8_t jobId, uint8_t faninDegree)
 {
     NS_LOG_FUNCTION(this << faninDegree);
     for (auto& aggregator : m_aggregators)
     {
-        aggregator.m_faninDegree = faninDegree;
+        aggregator.m_jobFaninDegree[jobId] = faninDegree;
     }
 }
 
@@ -241,7 +241,6 @@ ATPL4Protocol::AggregatePacket(Ptr<Packet> packet)
         if (aggregator.IsEmpty()) {
             aggregator.m_jobId = atpTag.GetJobId();
             aggregator.m_seqNum = atpTag.GetSeqNumber();
-            // aggregator.m_faninDegree = atpTag.GetFaninDegree();
         }
 
         // 添加数据包到聚合器
@@ -256,7 +255,7 @@ ATPL4Protocol::AggregatePacket(Ptr<Packet> packet)
             aggregatedPacket->RemovePacketTag(newTag);
 
             // 改成聚合完成标志AGG
-            if (aggregator.m_faninDegree == newTag.GetFaninDegree())
+            if (aggregator.m_jobFaninDegree[newTag.GetJobId()] == newTag.GetFaninDegree())
             {
                 newTag.SetPacketType(ATPTag::AGG);
             }

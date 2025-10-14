@@ -5,6 +5,7 @@
 #include "ns3/ptr.h"
 #include "atp-tag.h"
 #include <boost/functional/hash.hpp>
+#include <map>
 
 #include <cstdint>
 
@@ -16,7 +17,7 @@ public:
     Aggregator();
     ~Aggregator();
 
-    void SetFaninDegree(uint8_t faninDegree);
+    void SetFaninDegree(uint8_t jobId, uint8_t faninDegree);
 
     bool AddPacket(Ptr<const Packet> packet);
     Ptr<Packet> GetAggregatedPacket() const;
@@ -24,7 +25,9 @@ public:
     uint8_t m_jobId = 0;
     uint32_t m_seqNum = 0;
     uint32_t m_count = 0;
-    uint8_t m_faninDegree = 0b00000000;
+    // uint8_t m_faninDegree = 0b00000000;
+    // 使用map来存储jobId和faninDegree
+    std::map<uint8_t, uint8_t> m_jobFaninDegree; // jobId: faninDegree
     uint8_t m_workerIdAgg = 0b00000000;
     Ptr<Packet> m_packet;   //!< 存储的数据包
 
