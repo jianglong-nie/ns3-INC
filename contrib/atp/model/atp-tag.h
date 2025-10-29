@@ -28,11 +28,17 @@ class ATPTag : public Tag
 
     ATPTag();
 
-    void SetFaninDegree(uint8_t faninDegree);
-    uint8_t GetFaninDegree() const;
+    void SetFaninDegree0(uint8_t faninDegree0);
+    uint8_t GetFaninDegree0() const;
 
-    void SetWorkerId(uint8_t workerId);
-    uint8_t GetWorkerId() const;
+    void SetFaninDegree1(uint8_t faninDegree1);
+    uint8_t GetFaninDegree1() const;
+
+    void SetBitMap0(uint8_t bitmap0);
+    uint8_t GetBitMap0() const;
+
+    void SetBitMap1(uint8_t bitmap1);
+    uint8_t GetBitMap1() const;
 
     // 定义数据包类型
     // 使用具有描述性名称的常量，但底层仍然是 uint8_t
@@ -49,9 +55,6 @@ class ATPTag : public Tag
 
     void SetSeqNumber(uint32_t seqNum);
     uint32_t GetSeqNumber() const;
-
-    void SetAckNumber(uint32_t ackNum);
-    uint32_t GetAckNumber() const;
 
     void SetSize(uint16_t size);
     uint16_t GetSize() const;
@@ -81,14 +84,17 @@ class ATPTag : public Tag
     // 添加复制函数
     void CopyFrom(const ATPTag& other);
 
-  private:
-    uint8_t m_faninDegree{0};
-    uint8_t m_workerId{0};
+    uint8_t m_faninDegree0{0};
+    uint8_t m_faninDegree1{0};
+    uint8_t m_bitmap0{0};
+    uint8_t m_bitmap1{0};
     uint8_t m_atpPacketType{0};
     uint8_t m_jobId{0};    //!< Job ID
     uint32_t m_seqNum{0};   //!< Sequence number
-    uint32_t m_ackNum{0};   //!< Ack number
     uint8_t m_ecn{0};      //!< ECN
+    uint8_t m_isAck{0};
+    uint8_t m_collision{0};
+    uint8_t m_edgeSwitchIdentifier{0};
     uint16_t m_size{0};    //!< Size of data to send each time
     uint16_t m_sourcePort{0xfffd};      //!< Source port
     uint16_t m_destinationPort{0xfffd}; //!< Destination port

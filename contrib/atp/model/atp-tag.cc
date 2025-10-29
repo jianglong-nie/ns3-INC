@@ -36,8 +36,10 @@ ATPTag::ATPTag()
     : m_atpPacketType(ATPTag::UNKNOWN),
       m_jobId(0),
       m_seqNum(0),
-      m_ackNum(0),
       m_ecn(0),
+      m_isAck(0),
+      m_collision(0),
+      m_edgeSwitchIdentifier(0),
       m_size(0),
       m_sourcePort(0xfffd),
       m_destinationPort(0xfffd)
@@ -46,31 +48,59 @@ ATPTag::ATPTag()
 }
 
 void
-ATPTag::SetFaninDegree(uint8_t faninDegree)
+ATPTag::SetFaninDegree0(uint8_t faninDegree0)
 {
-    NS_LOG_FUNCTION(this << faninDegree);
-    m_faninDegree = faninDegree;
+    NS_LOG_FUNCTION(this << faninDegree0);
+    m_faninDegree0 = faninDegree0;
 }
 
 uint8_t
-ATPTag::GetFaninDegree() const
+ATPTag::GetFaninDegree0() const
 {
     NS_LOG_FUNCTION(this);
-    return m_faninDegree;
+    return m_faninDegree0;
 }
 
 void
-ATPTag::SetWorkerId(uint8_t workerId)
+ATPTag::SetFaninDegree1(uint8_t faninDegree1)
 {
-    NS_LOG_FUNCTION(this << workerId);
-    m_workerId = workerId;
+    NS_LOG_FUNCTION(this << faninDegree1);
+    m_faninDegree1 = faninDegree1;
 }
 
 uint8_t
-ATPTag::GetWorkerId() const
+ATPTag::GetFaninDegree1() const
 {
     NS_LOG_FUNCTION(this);
-    return m_workerId;
+    return m_faninDegree1;
+}
+
+void
+ATPTag::SetBitMap0(uint8_t bitmap0)
+{
+    NS_LOG_FUNCTION(this << bitmap0);
+    m_bitmap0 = bitmap0;
+}
+
+uint8_t
+ATPTag::GetBitMap0() const
+{
+    NS_LOG_FUNCTION(this);
+    return m_bitmap0;
+}
+
+uint8_t
+ATPTag::GetBitMap1() const
+{
+    NS_LOG_FUNCTION(this);
+    return m_bitmap1;
+}
+
+void
+ATPTag::SetBitMap1(uint8_t bitmap1)
+{
+    NS_LOG_FUNCTION(this << bitmap1);
+    m_bitmap1 = bitmap1;
 }
 
 void
@@ -106,20 +136,6 @@ ATPTag::SetSeqNumber(uint32_t seqNum)
 {
     NS_LOG_FUNCTION(this << seqNum);
     m_seqNum = seqNum;
-}
-
-void
-ATPTag::SetAckNumber(uint32_t ackNum)
-{
-    NS_LOG_FUNCTION(this << ackNum);
-    m_ackNum = ackNum;
-}
-
-uint32_t
-ATPTag::GetAckNumber() const
-{
-    NS_LOG_FUNCTION(this);
-    return m_ackNum;
 }
 
 uint32_t
@@ -189,8 +205,8 @@ uint32_t
 ATPTag::GetSerializedSize() const
 {
     NS_LOG_FUNCTION(this);
-    return  1 + 1 + 1 + 1 + 4 + 4 + 1 + 2 + 2 + 2;
-    // faninDegree + workerId + packetType + jobId + seqNum + ackNum + ecn + 
+    return  1 + 1 + 1 + 1 + 1 + 1 + 4 + 1 + 1 + 1 + 1 + 2 + 2 + 2;
+    // faninDegree0 + faninDegree1 + bitmap0 + bitmap1 + packetType + jobId + seqNum + ecn + ack + collision + edgeSwitchIdentifier 
     // size + sourcePort + destinationPort
 }
 
@@ -198,13 +214,17 @@ void
 ATPTag::Serialize(TagBuffer buf) const
 {
     NS_LOG_FUNCTION(this << &buf);
-    buf.WriteU8(m_faninDegree);
-    buf.WriteU8(m_workerId);
+    buf.WriteU8(m_faninDegree0);
+    buf.WriteU8(m_faninDegree1);
+    buf.WriteU8(m_bitmap0);
+    buf.WriteU8(m_bitmap1);
     buf.WriteU8(m_atpPacketType);
     buf.WriteU8(m_jobId);
     buf.WriteU32(m_seqNum);
-    buf.WriteU32(m_ackNum);
     buf.WriteU8(m_ecn);
+    buf.WriteU8(m_isAck);
+    buf.WriteU8(m_collision);
+    buf.WriteU8(m_edgeSwitchIdentifier);
     buf.WriteU16(m_size);
     buf.WriteU16(m_sourcePort);
     buf.WriteU16(m_destinationPort);
@@ -214,13 +234,17 @@ void
 ATPTag::Deserialize(TagBuffer buf)
 {
     NS_LOG_FUNCTION(this << &buf);
-    m_faninDegree = buf.ReadU8();
-    m_workerId = buf.ReadU8();
+    m_faninDegree0 = buf.ReadU8();
+    m_faninDegree1 = buf.ReadU8();
+    m_bitmap0 = buf.ReadU8();
+    m_bitmap1 = buf.ReadU8();
     m_atpPacketType = buf.ReadU8();
     m_jobId = buf.ReadU8();
     m_seqNum = buf.ReadU32();
-    m_ackNum = buf.ReadU32();
     m_ecn = buf.ReadU8();
+    m_isAck = buf.ReadU8();
+    m_collision = buf.ReadU8();
+    m_edgeSwitchIdentifier = buf.ReadU8();
     m_size = buf.ReadU16();
     m_sourcePort = buf.ReadU16();
     m_destinationPort = buf.ReadU16();
@@ -229,13 +253,17 @@ ATPTag::Deserialize(TagBuffer buf)
 void ATPTag::Print(std::ostream& os) const
 {
     NS_LOG_FUNCTION(this << &os);
-    os << " faninDegree=" << static_cast<int>(m_faninDegree)
-       << " workerId=" << static_cast<int>(m_workerId)
+    os << " faninDegree0=" << static_cast<int>(m_faninDegree0)
+       << " faninDegree1=" << static_cast<int>(m_faninDegree1)
+       << " bitmap0=" << static_cast<int>(m_bitmap0)
+       << " bitmap1=" << static_cast<int>(m_bitmap1)
        << " packetType=" << static_cast<int>(m_atpPacketType)
        << " (seqNum=" << static_cast<int>(m_seqNum)
        << " jobId=" << static_cast<int>(m_jobId)
-       << " ackNum=" << static_cast<int>(m_ackNum)
        << " ecn=" << static_cast<int>(m_ecn)
+       << " isAck=" << static_cast<int>(m_isAck)
+       << " collision =" << static_cast<int>(m_collision)
+       << " edgeSwitchIdentifier" << static_cast<int>(m_edgeSwitchIdentifier)
        << " size=" << m_size
        << " sourcePort=" << m_sourcePort
        << " destinationPort=" << m_destinationPort
@@ -245,14 +273,18 @@ void ATPTag::Print(std::ostream& os) const
 void
 ATPTag::CopyFrom(const ATPTag& other)
 {
-    m_faninDegree = other.m_faninDegree;
-    m_workerId = other.m_workerId;
+    m_faninDegree0 = other.m_faninDegree0;
+    m_faninDegree1 = other.m_faninDegree1;
+    m_bitmap0 = other.m_bitmap0;
+    m_bitmap1 = other.m_bitmap1;
     m_atpPacketType = other.m_atpPacketType;
     m_jobId = other.m_jobId;
     m_seqNum = other.m_seqNum;
-    m_ackNum = other.m_ackNum;
     m_size = other.m_size;
     m_ecn = other.m_ecn;
+    m_isAck = other.m_isAck;
+    m_collision = other.m_collision;
+    m_edgeSwitchIdentifier = other.m_edgeSwitchIdentifier;
     m_sourcePort = other.m_sourcePort;
     m_destinationPort = other.m_destinationPort;
 }

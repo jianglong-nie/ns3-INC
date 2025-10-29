@@ -23,12 +23,11 @@ public:
 
     uint8_t m_jobId = 0;
     uint32_t m_seqNum = 0;
-    uint32_t m_count = 0;
     uint8_t m_faninDegree = 0b00000000;
-    uint8_t m_workerIdAgg = 0b00000000;
+    uint8_t m_bitmap = 0b00000000;
     Ptr<Packet> m_packet;   //!< 存储的数据包
 
-    bool IsEmpty() const {return m_count == 0;};
+    bool IsEmpty() const {return m_bitmap == 0b00000000;};
     void Reset();
 
     // 添加静态哈希函数

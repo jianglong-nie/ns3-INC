@@ -8,9 +8,8 @@ NS_LOG_COMPONENT_DEFINE("Aggregator");
 Aggregator::Aggregator()
     : m_jobId(0),
       m_seqNum(0),
-      m_count(0),
       m_faninDegree(0b00000000),
-      m_workerIdAgg(0b00000000),
+      m_bitmap(0b00000000),
       m_packet(nullptr)
 {
     NS_LOG_FUNCTION(this);
@@ -39,26 +38,33 @@ Aggregator::AddPacket(Ptr<const Packet> packet)
     // 获取ATPTag
     ATPTag atpTag;
     packet->PeekPacketTag(atpTag);
-    uint8_t workerId = atpTag.GetWorkerId();
 
     if (m_packet == nullptr)
     {
         m_packet = packet->Copy();
     }
 
-    m_count++;
-    m_workerIdAgg = m_workerIdAgg | workerId;
-
-    // 检查是否完成聚合
-    if (m_workerIdAgg == m_faninDegree)
-    {
-        m_packet->RemovePacketTag(atpTag);
-        atpTag.SetWorkerId(m_workerIdAgg);
-        m_packet->AddPacketTag(atpTag);
-        return true;  // 聚合完成，可以取出数据包了
+    if (atpTag.m_edgeSwitchIdentifier == 0) {
+        m_bitmap = m_bitmap | atpTag.m_bitmap0;
+        if (m_bitmap == m_faninDegree) {
+            m_packet->RemovePacketTag(atpTag);
+            atpTag.SetBitMap0(m_bitmap);
+            atpTag.m_edgeSwitchIdentifier += 1;
+            m_packet->AddPacketTag(atpTag);
+            return true;  // 聚合完成，可以取出数据包了
+        }
+        return false;
     }
-    
-    return false;  // 聚合未完成，继续收集数据包
+    else {
+        m_bitmap = m_bitmap | atpTag.m_bitmap1;
+        if (m_bitmap == m_faninDegree) {
+            m_packet->RemovePacketTag(atpTag);
+            atpTag.SetBitMap1(m_bitmap);
+            m_packet->AddPacketTag(atpTag);
+            return true;  // 聚合完成，可以取出数据包了
+        }
+        return false;
+    }
 }
 
 Ptr<Packet>
@@ -72,11 +78,10 @@ void
 Aggregator::Reset()
 {
     NS_LOG_FUNCTION(this);
-    m_workerIdAgg = 0b00000000;
+    m_bitmap = 0b00000000;
     m_faninDegree = 0b00000000;
     m_jobId = 0;
     m_seqNum = 0;
-    m_count = 0;
     m_packet = nullptr;
 }
 
