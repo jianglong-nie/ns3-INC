@@ -108,7 +108,7 @@ class ATPBulkSendApplication : public Application
      * \param maxBytes the upper bound of bytes to send
      * \param jobId the job ID
      */
-    void Setup(Address sinkAddress, Ptr<Socket> socket, uint64_t maxBytes, uint32_t jobId);
+    void Setup(Address sinkAddress, Ptr<Socket> socket, uint64_t maxBytes, uint8_t jobId);
 
     /**
      * \brief Set the socket for the application.
@@ -125,11 +125,22 @@ class ATPBulkSendApplication : public Application
     void SetEnableATPTag(bool enableATPTag);
     bool GetEnableATPTag() const;
 
-    void SetJobId(uint32_t jobId);
-    uint32_t GetJobId() const;
+    void SetJobId(uint8_t jobId);
+    uint8_t GetJobId() const;
 
-    void SetWorkerId(uint8_t workerId);
-    uint8_t GetWorkerId() const;
+    void SetFaninDegree0(uint8_t faninDegree0);
+    uint8_t GetFaninDegree0() const;
+
+    void SetFaninDegree1(uint8_t faninDegree1);
+    uint8_t GetFaninDegree1() const;
+
+    void SetBitmap0(uint8_t bitmap0);
+    uint8_t GetBitmap0() const;
+
+    void SetBitmap1(uint8_t bitmap1);
+    uint8_t GetBitmap1() const;
+
+    void SetINCConfiguration(uint8_t faninDegree0, uint8_t faninDegree1, uint8_t bitmap0, uint8_t bitmap1);
 
     void ConnectionSucceeded(Ptr<Socket> socket);
     void ConnectionFailed(Ptr<Socket> socket);
@@ -157,12 +168,17 @@ class ATPBulkSendApplication : public Application
     uint64_t m_maxBytes;                 //!< Limit total number of bytes sent
     uint64_t m_totBytes;                 //!< Total bytes sent so far
     TypeId m_tid;                        //!< The type of protocol to use.
-    uint32_t m_seqNum{0};                //!< Sequence number
     Ptr<Packet> m_unsentPacket;          //!< Variable to cache unsent packet
     bool m_enableATPTag{false};          //!< Enable or disable the ATPTag
-    uint32_t m_jobId{0};                 //!< Job ID
-    uint8_t m_workerId{0};               //!< Worker ID
-    uint8_t m_faninDegree{0};             //!< Fanin degree
+    
+    // ATPTag related attributes
+    bool m_enableATPTag{false};
+    uint8_t m_jobId{0};
+    uint32_t m_seqNum{0};
+    uint8_t m_faninDegree0{0};
+    uint8_t m_faninDegree1{0};
+    uint8_t m_bitmap0{0};
+    uint8_t m_bitmap1{0};
 
     /// Traced Callback: sent packets
     TracedCallback<Ptr<const Packet>> m_txTrace;
