@@ -33,11 +33,16 @@ ATPTag::GetInstanceTypeId() const
 }
 
 ATPTag::ATPTag()
-    : m_atpPacketType(ATPTag::UNKNOWN),
+    : m_faninDegree0(0),
+      m_faninDegree1(0),
+      m_bitmap0(0),
+      m_bitmap1(0),
       m_jobId(0),
       m_seqNum(0),
       m_ecn(0),
       m_isAck(0),
+      m_overflow(0),
+      m_resend(0),
       m_collision(0),
       m_edgeSwitchIdentifier(0),
       m_size(0),
@@ -76,45 +81,31 @@ ATPTag::GetFaninDegree1() const
 }
 
 void
-ATPTag::SetBitMap0(uint8_t bitmap0)
+ATPTag::SetBitMap0(uint32_t bitmap0)
 {
     NS_LOG_FUNCTION(this << bitmap0);
     m_bitmap0 = bitmap0;
 }
 
-uint8_t
+uint32_t
 ATPTag::GetBitMap0() const
 {
     NS_LOG_FUNCTION(this);
     return m_bitmap0;
 }
 
-uint8_t
-ATPTag::GetBitMap1() const
-{
-    NS_LOG_FUNCTION(this);
-    return m_bitmap1;
-}
-
 void
-ATPTag::SetBitMap1(uint8_t bitmap1)
+ATPTag::SetBitMap1(uint32_t bitmap1)
 {
     NS_LOG_FUNCTION(this << bitmap1);
     m_bitmap1 = bitmap1;
 }
 
-void
-ATPTag::SetPacketType(uint8_t type)
-{
-    NS_LOG_FUNCTION(this << static_cast<int>(type));
-    m_atpPacketType = type;
-}
-
-uint8_t
-ATPTag::GetPacketType() const
+uint32_t
+ATPTag::GetBitMap1() const
 {
     NS_LOG_FUNCTION(this);
-    return m_atpPacketType;
+    return m_bitmap1;
 }
 
 void
@@ -132,14 +123,14 @@ ATPTag::GetJobId() const
 }
 
 void
-ATPTag::SetSeqNumber(uint32_t seqNum)
+ATPTag::SetSeqNum(uint32_t seqNum)
 {
     NS_LOG_FUNCTION(this << seqNum);
     m_seqNum = seqNum;
 }
 
 uint32_t
-ATPTag::GetSeqNumber() const
+ATPTag::GetSeqNum() const
 {
     NS_LOG_FUNCTION(this);
     return m_seqNum;
@@ -205,9 +196,9 @@ uint32_t
 ATPTag::GetSerializedSize() const
 {
     NS_LOG_FUNCTION(this);
-    return  1 + 1 + 1 + 1 + 1 + 1 + 4 + 1 + 1 + 1 + 1 + 2 + 2 + 2;
-    // faninDegree0 + faninDegree1 + bitmap0 + bitmap1 + packetType + jobId + seqNum + ecn + ack + collision + edgeSwitchIdentifier 
-    // size + sourcePort + destinationPort
+    return  1 + 1 + 4 + 4 + 1 + 4 + 1 + 1 + 1 + 1 + 1 + 1 + 2 + 2 + 2;
+    // faninDegree0 + faninDegree1 + bitmap0 + bitmap1 + jobId + seqNum 
+    // + ecn + isAck + overflow + resend + collision + edgeSwitchIdentifier + size + sourcePort + destinationPort
 }
 
 void
@@ -216,13 +207,14 @@ ATPTag::Serialize(TagBuffer buf) const
     NS_LOG_FUNCTION(this << &buf);
     buf.WriteU8(m_faninDegree0);
     buf.WriteU8(m_faninDegree1);
-    buf.WriteU8(m_bitmap0);
-    buf.WriteU8(m_bitmap1);
-    buf.WriteU8(m_atpPacketType);
+    buf.WriteU32(m_bitmap0);
+    buf.WriteU32(m_bitmap1);
     buf.WriteU8(m_jobId);
     buf.WriteU32(m_seqNum);
     buf.WriteU8(m_ecn);
     buf.WriteU8(m_isAck);
+    buf.WriteU8(m_overflow);
+    buf.WriteU8(m_resend);
     buf.WriteU8(m_collision);
     buf.WriteU8(m_edgeSwitchIdentifier);
     buf.WriteU16(m_size);
@@ -236,13 +228,14 @@ ATPTag::Deserialize(TagBuffer buf)
     NS_LOG_FUNCTION(this << &buf);
     m_faninDegree0 = buf.ReadU8();
     m_faninDegree1 = buf.ReadU8();
-    m_bitmap0 = buf.ReadU8();
-    m_bitmap1 = buf.ReadU8();
-    m_atpPacketType = buf.ReadU8();
+    m_bitmap0 = buf.ReadU32();
+    m_bitmap1 = buf.ReadU32();
     m_jobId = buf.ReadU8();
     m_seqNum = buf.ReadU32();
     m_ecn = buf.ReadU8();
     m_isAck = buf.ReadU8();
+    m_overflow = buf.ReadU8();
+    m_resend = buf.ReadU8();
     m_collision = buf.ReadU8();
     m_edgeSwitchIdentifier = buf.ReadU8();
     m_size = buf.ReadU16();
@@ -255,13 +248,14 @@ void ATPTag::Print(std::ostream& os) const
     NS_LOG_FUNCTION(this << &os);
     os << " faninDegree0=" << static_cast<int>(m_faninDegree0)
        << " faninDegree1=" << static_cast<int>(m_faninDegree1)
-       << " bitmap0=" << static_cast<int>(m_bitmap0)
-       << " bitmap1=" << static_cast<int>(m_bitmap1)
-       << " packetType=" << static_cast<int>(m_atpPacketType)
-       << " (seqNum=" << static_cast<int>(m_seqNum)
+       << " bitmap0=" << m_bitmap0
+       << " bitmap1=" << m_bitmap1
+       << " seqNum=" << static_cast<int>(m_seqNum)
        << " jobId=" << static_cast<int>(m_jobId)
        << " ecn=" << static_cast<int>(m_ecn)
        << " isAck=" << static_cast<int>(m_isAck)
+       << " overflow=" << static_cast<int>(m_overflow)
+       << " resend=" << static_cast<int>(m_resend)
        << " collision =" << static_cast<int>(m_collision)
        << " edgeSwitchIdentifier" << static_cast<int>(m_edgeSwitchIdentifier)
        << " size=" << m_size
@@ -277,14 +271,15 @@ ATPTag::CopyFrom(const ATPTag& other)
     m_faninDegree1 = other.m_faninDegree1;
     m_bitmap0 = other.m_bitmap0;
     m_bitmap1 = other.m_bitmap1;
-    m_atpPacketType = other.m_atpPacketType;
     m_jobId = other.m_jobId;
     m_seqNum = other.m_seqNum;
-    m_size = other.m_size;
     m_ecn = other.m_ecn;
     m_isAck = other.m_isAck;
+    m_overflow = other.m_overflow;
+    m_resend = other.m_resend;
     m_collision = other.m_collision;
     m_edgeSwitchIdentifier = other.m_edgeSwitchIdentifier;
+    m_size = other.m_size;
     m_sourcePort = other.m_sourcePort;
     m_destinationPort = other.m_destinationPort;
 }

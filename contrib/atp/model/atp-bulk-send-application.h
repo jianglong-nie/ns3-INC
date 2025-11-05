@@ -119,9 +119,6 @@ class ATPBulkSendApplication : public Application
      */
     void SetSocket(Ptr<Socket> socket);
 
-    void SetFaninDegree(uint8_t faninDegree);
-    uint8_t GetFaninDegree() const;
-
     void SetEnableATPTag(bool enableATPTag);
     bool GetEnableATPTag() const;
 
@@ -134,13 +131,11 @@ class ATPBulkSendApplication : public Application
     void SetFaninDegree1(uint8_t faninDegree1);
     uint8_t GetFaninDegree1() const;
 
-    void SetBitmap0(uint8_t bitmap0);
-    uint8_t GetBitmap0() const;
+    void SetBitmap0(uint32_t bitmap0);
+    uint32_t GetBitmap0() const;
 
-    void SetBitmap1(uint8_t bitmap1);
-    uint8_t GetBitmap1() const;
-
-    void SetINCConfiguration(uint8_t faninDegree0, uint8_t faninDegree1, uint8_t bitmap0, uint8_t bitmap1);
+    void SetBitmap1(uint32_t bitmap1);
+    uint32_t GetBitmap1() const;
 
     void ConnectionSucceeded(Ptr<Socket> socket);
     void ConnectionFailed(Ptr<Socket> socket);
@@ -169,7 +164,6 @@ class ATPBulkSendApplication : public Application
     uint64_t m_totBytes;                 //!< Total bytes sent so far
     TypeId m_tid;                        //!< The type of protocol to use.
     Ptr<Packet> m_unsentPacket;          //!< Variable to cache unsent packet
-    bool m_enableATPTag{false};          //!< Enable or disable the ATPTag
     
     // ATPTag related attributes
     bool m_enableATPTag{false};
@@ -177,8 +171,8 @@ class ATPBulkSendApplication : public Application
     uint32_t m_seqNum{0};
     uint8_t m_faninDegree0{0};
     uint8_t m_faninDegree1{0};
-    uint8_t m_bitmap0{0};
-    uint8_t m_bitmap1{0};
+    uint32_t m_bitmap0{0};
+    uint32_t m_bitmap1{0};
 
     /// Traced Callback: sent packets
     TracedCallback<Ptr<const Packet>> m_txTrace;

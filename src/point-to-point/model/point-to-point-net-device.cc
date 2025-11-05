@@ -349,9 +349,8 @@ PointToPointNetDevice::Receive(Ptr<Packet> packet)
             NS_LOG_INFO("Receive Node=" << m_node->GetId() <<
                        " Device Id=" << m_ifIndex <<
                        " Time=" << Simulator::Now().GetNanoSeconds() << 
-                       " Packet Type=" << (atpTag.GetPacketType() == ATPTag::DATA ? "DATA" : atpTag.GetPacketType() == ATPTag::ACK ? "ACK" : atpTag.GetPacketType() == ATPTag::AGG ? "AGG" : "UNKNOWN") <<
                        " JobId=" << (int)atpTag.GetJobId() <<
-                       " SeqNum=" << (int)atpTag.GetSeqNumber());
+                       " SeqNum=" << (int)atpTag.GetSeqNum());
         }
         
         m_snifferTrace(packet);
@@ -528,9 +527,8 @@ PointToPointNetDevice::Send(Ptr<Packet> packet, const Address& dest, uint16_t pr
         NS_LOG_INFO( "Send Node=" << m_node->GetId() <<
         " DeviceId=" << m_ifIndex <<
         " Time=" << Simulator::Now().GetNanoSeconds() << 
-        " PacketType=" << (atpTag.GetPacketType() == ATPTag::DATA ? "DATA" : atpTag.GetPacketType() == ATPTag::ACK ? "ACK" : atpTag.GetPacketType() == ATPTag::AGG ? "AGG" : "UNKNOWN") <<
         " JobId=" << (int)atpTag.GetJobId() <<
-        " SeqNum=" << (int)atpTag.GetSeqNumber());
+        " SeqNum=" << (int)atpTag.GetSeqNum());
     }
     // Check if queue size exceeds threshold - ONLY for DATA packets, not ACK packets
     if (enableEcn && queueSize >= m_threshold)
@@ -569,10 +567,9 @@ PointToPointNetDevice::Send(Ptr<Packet> packet, const Address& dest, uint16_t pr
             NS_LOG_INFO("Node=" << m_node->GetId() << 
                        " Interface=" << m_ifIndex <<
                        " Time=" << Simulator::Now().GetMicroSeconds() << 
-                       "s Queue_size=" << queueSize << 
-                       " Packet_type=" << (atpTag.GetPacketType() == ATPTag::ACK ? "ACK" : "DATA") <<
+                       " Queue_size=" << queueSize << 
                        " JobId=" << (int)atpTag.GetJobId() <<
-                       " SeqNum=" << (int)atpTag.GetSeqNumber() <<
+                       " SeqNum=" << (int)atpTag.GetSeqNum() <<
                        " Dest=" << dest);
         }
         */

@@ -660,11 +660,11 @@ ATPSocket::ReceiveAck(ATPTag atpTag)
     NS_LOG_INFO("Receive ack packet at time " << Simulator::Now().GetSeconds() << "s");
 
     // 判断收到的ack是否按序到达
-    if (m_txBuffer->IsOrderedAck(atpTag.GetAckNumber()))
+    if (m_txBuffer->IsOrderedAck(atpTag.GetSeqNum()))
     {
         // 处理按序到达的ack
-        m_txBuffer->ProcessOrderedAck(atpTag.GetAckNumber());
-        m_txBuffer->UpdateCwndLeftBound(atpTag.GetAckNumber());
+        m_txBuffer->ProcessOrderedAck(atpTag.GetSeqNum());
+        m_txBuffer->UpdateCwndLeftBound(atpTag.GetSeqNum());
 
         bool isEcn = (atpTag.GetEcn() == 1);
 
@@ -687,7 +687,7 @@ ATPSocket::ReceiveAck(ATPTag atpTag)
     else
     {
         // 处理乱序到达的ack
-        Ptr<Packet> packet = m_txBuffer->ProcessUnorderedAck(atpTag.GetAckNumber());
+        Ptr<Packet> packet = m_txBuffer->ProcessUnorderedAck(atpTag.GetSeqNum());
         if (packet != nullptr) {
             if (!m_ecnTimerRunning) {
                 m_txBuffer->ProcessCongestion(true);
@@ -711,11 +711,10 @@ ATPSocket::SendAck(ATPTag atpTag, Ipv4Header ipHeader)
 
     // 返回一个ack数据包给发送端
     ATPTag ackTag;
-    ackTag.SetPacketType(ATPTag::ACK);
+    ackTag.m_isAck = 1;
     ackTag.SetEcn(atpTag.GetEcn());
     ackTag.SetJobId(atpTag.GetJobId());
-    ackTag.SetAckNumber(atpTag.GetSeqNumber());
-    ackTag.SetSeqNumber(atpTag.GetSeqNumber());  // 添加这行：设置seqNumber与原始数据包一致
+    ackTag.SetSeqNum(atpTag.GetSeqNum());  // 添加这行：设置seqNumber与原始数据包一致
 
     // ack包的源地址和目的地址与发送的包相反
     Ipv4Address ackSource = ipHeader.GetDestination();
@@ -759,11 +758,10 @@ ATPSocket::SendMultiAck(const ATPTag& atpTag, const Ipv4Header& ipHeader)
     {
         // 创建ACK头部
         ATPTag ackTag;
-        ackTag.SetPacketType(ATPTag::ACK);
+        ackTag.m_isAck = 1;
         ackTag.SetEcn(atpTag.GetEcn());
         ackTag.SetJobId(atpTag.GetJobId());
-        ackTag.SetAckNumber(atpTag.GetSeqNumber());
-        ackTag.SetSeqNumber(atpTag.GetSeqNumber());  // 添加这行：设置seqNumber与原始数据包一致
+        ackTag.SetSeqNum(atpTag.GetSeqNum());  // 添加这行：设置seqNumber与原始数据包一致
         
         // ack包的源地址和目的地址与发送的包相反
         Ipv4Address ackSource = ipHeader.GetDestination();
@@ -805,7 +803,7 @@ ATPSocket::AggregatePacket(Ptr<Packet> packet,
     packet->PeekPacketTag(atpTag);
 
     // 使用Aggregator类的哈希函数计算索引
-    std::size_t index = Aggregator::HashToIndex(atpTag.GetJobId(), atpTag.GetSeqNumber(), MAX_AGGREGATORS);
+    std::size_t index = Aggregator::HashToIndex(atpTag.GetJobId(), atpTag.GetSeqNum(), MAX_AGGREGATORS);
     
     // 获取对应的聚合器
     Aggregator& aggregator = m_aggregators[index];
@@ -813,27 +811,26 @@ ATPSocket::AggregatePacket(Ptr<Packet> packet,
     // 如果聚合器为空，或者jobId和seqNum都匹配
     if (aggregator.IsEmpty() || 
         (aggregator.m_jobId == atpTag.GetJobId() && 
-         aggregator.m_seqNum == atpTag.GetSeqNumber()))
+         aggregator.m_seqNum == atpTag.GetSeqNum()))
     {
         // 如果是空的，初始化jobId和seqNum
         if (aggregator.IsEmpty()) {
             aggregator.m_jobId = atpTag.GetJobId();
-            aggregator.m_seqNum = atpTag.GetSeqNumber();
-            aggregator.m_faninDegree = atpTag.GetFaninDegree();
+            aggregator.m_seqNum = atpTag.GetSeqNum();
             NS_LOG_INFO("Using empty aggregator at index " << index 
                         << " for jobId " << static_cast<int>(atpTag.GetJobId())
-                        << " seqNum " << static_cast<int>(atpTag.GetSeqNumber()));
+                        << " seqNum " << static_cast<int>(atpTag.GetSeqNum()));
         }
 
         // 添加数据包到聚合器
-        bool aggregationComplete = aggregator.AddPacket(packet);
+        bool aggregationComplete = aggregator.ProcessPacket(packet);
         if (aggregationComplete)
         {
             NS_LOG_INFO("ATPSocket: Aggregation complete for jobId " << static_cast<int>(atpTag.GetJobId())
-                        << " seqNum " << static_cast<int>(atpTag.GetSeqNumber()));
+                        << " seqNum " << static_cast<int>(atpTag.GetSeqNum()));
             
             // 获取聚合后的数据包
-            Ptr<Packet> aggregatedPacket = aggregator.GetAggregatedPacket();
+            Ptr<Packet> aggregatedPacket = aggregator.GetResultPacket();
 
             //ATPTag atpTag;
             //aggregatedPacket->RemovePacketTag(atpTag);
@@ -888,7 +885,7 @@ ATPSocket::ForwardUp(Ptr<Packet> packet,
         return;
     }
 
-    // 判断是否是ack数据包，可能ackNumber不对，应该选别的。
+    // 判断是否是ack数据包，可能seqNum不对，应该选别的。
     ATPTag atpTag;
     bool hasATPTag = packet->PeekPacketTag(atpTag);
 
@@ -899,7 +896,7 @@ ATPSocket::ForwardUp(Ptr<Packet> packet,
         return;
     }
     
-    if (atpTag.GetPacketType() == ATPTag::ACK)
+    if (atpTag.m_isAck == 1)
     {
         // 处理ack包
         ReceiveAck(atpTag);
@@ -908,21 +905,10 @@ ATPSocket::ForwardUp(Ptr<Packet> packet,
 
     Address address = InetSocketAddress(header.GetSource(), port);
     
-    // 根据数据包属性，进行不同的处理
-    if (atpTag.GetPacketType() == ATPTag::AGG)
+    // 如果发来的数据包是完全聚合的，则直接处理
+    if (atpTag.m_bitmap1 == m_switch_bitmap1)
     {
         NS_LOG_INFO("This is a aggregated packet");
-
-        // 释放m_aggregators中与当前数据包的jobId和seqNum 相等的聚合器
-        std::size_t index = Aggregator::HashToIndex(atpTag.GetJobId(), atpTag.GetSeqNumber(), MAX_AGGREGATORS);
-        Aggregator& aggregator = m_aggregators[index];
-
-        if (aggregator.IsEmpty() || 
-            (aggregator.m_jobId == atpTag.GetJobId() && 
-            aggregator.m_seqNum == atpTag.GetSeqNumber()))
-        {
-            aggregator.Reset();
-        }
 
         if ((m_rxAvailable - packet->GetSize()) >= 0)
         {
@@ -949,7 +935,8 @@ ATPSocket::ForwardUp(Ptr<Packet> packet,
         return;
     }
 
-    if (atpTag.GetPacketType() == ATPTag::DATA)
+    // 如果发来的数据包是哈希碰撞了的，那就是没有聚合，需要聚合
+    if (atpTag.m_collision == 1)
     {
         NS_LOG_INFO("This is a DATA packet, has not been aggregated");
         AggregatePacket(packet, header, port, incomingInterface);

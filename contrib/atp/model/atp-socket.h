@@ -107,6 +107,8 @@ class ATPSocket : public Socket
     // 设置初始拥塞窗口
     void SetInitCwnd(uint32_t initCwnd);
 
+    void SetSwitchBitmap(uint32_t s_bitmap);
+
   protected:
     void SendWindowData();
     int DoSend(Ptr<Packet> p);
@@ -178,6 +180,10 @@ class ATPSocket : public Socket
     // Address m_peerAddress;             // 对端地址
     TracedCallback<Ptr<const Packet>> m_txTrace;  // 发送跟踪
     TracedCallback<Ptr<const Packet>> m_rxTrace;  // 接收跟踪
+
+    // 用于判断数据包是否是完全聚合的
+    uint32_t m_switch_bitmap1 = 3;                // 当前交换机的bitmap1
+    std::map<uint32_t, uint32_t> m_switch_bitmap0_map;  // 每个交换机的bitmap0
 
     // 存储已知节点的IP地址和端口映射
     std::map<uint8_t, std::vector<std::pair<Ipv4Address, uint16_t>>> m_jobAddressMap;

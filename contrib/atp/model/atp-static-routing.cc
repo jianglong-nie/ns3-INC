@@ -246,7 +246,7 @@ ATPStaticRouting::LookupStatic(Ipv4Address dest, Ptr<NetDevice> oif)
         rtentry->SetDestination(dest);
         rtentry->SetGateway(Ipv4Address::GetZero());
         rtentry->SetOutputDevice(oif);
-        rtentry->SetSource(m_ipv4->GetAddress(m_ipv4->GetInterfaceForDevice(oif), 0).GetLocal());
+            rtentry->SetSource(m_ipv4->GetAddress(m_ipv4->GetInterfaceForDevice(oif), 0).GetLocal());
         return rtentry;
     }
 
@@ -291,9 +291,9 @@ ATPStaticRouting::LookupStatic(Ipv4Address dest, Ptr<NetDevice> oif)
             uint32_t interfaceIdx = route->GetInterface();
             rtentry = Create<Ipv4Route>();
             rtentry->SetDestination(route->GetDest());
-            rtentry->SetSource(m_ipv4->SourceAddressSelection(interfaceIdx, route->GetDest()));
+                rtentry->SetSource(m_ipv4->SourceAddressSelection(interfaceIdx, route->GetDest()));
             rtentry->SetGateway(route->GetGateway());
-            rtentry->SetOutputDevice(m_ipv4->GetNetDevice(interfaceIdx));
+                rtentry->SetOutputDevice(m_ipv4->GetNetDevice(interfaceIdx));
             if (masklen == 32)
             {
                 break;
@@ -515,10 +515,11 @@ ATPStaticRouting::RouteInput(Ptr<const Packet> p,
             // 创建一个新的数据包副本进行处理
             Ptr<Packet> packetCopy = p->Copy();
             // 调用ATP L4协议的AggregateStart函数
-            Ptr<Packet> aggregatedPacket = atpL4->AggregateStart(packetCopy);
+            Ptr<Packet> forwardedPacket = atpL4->FilterPacket(packetCopy);
             // 继续正常的路由处理
-            if (aggregatedPacket == nullptr)
+            if (forwardedPacket == nullptr)
             {
+                printf("forwardedPacket is nullptr\n");
                 return true;
             }
             else
@@ -534,7 +535,7 @@ ATPStaticRouting::RouteInput(Ptr<const Packet> p,
                     if (mrtentry)
                     {
                         NS_LOG_LOGIC("Multicast route found");
-                        mcb(mrtentry, aggregatedPacket, ipHeader); // multicast forwarding callback
+                        mcb(mrtentry, forwardedPacket, ipHeader); // multicast forwarding callback
                         return true;
                     }
                     else
@@ -549,7 +550,7 @@ ATPStaticRouting::RouteInput(Ptr<const Packet> p,
                     if (!lcb.IsNull())
                     {
                         NS_LOG_LOGIC("Local delivery to " << ipHeader.GetDestination());
-                        lcb(aggregatedPacket, ipHeader, iif);
+                        lcb(forwardedPacket, ipHeader, iif);
                         return true;
                     }
                     else
@@ -567,7 +568,7 @@ ATPStaticRouting::RouteInput(Ptr<const Packet> p,
                 if (!m_ipv4->IsForwarding(iif))
                 {
                     NS_LOG_LOGIC("Forwarding disabled for this interface");
-                    ecb(aggregatedPacket, ipHeader, Socket::ERROR_NOROUTETOHOST);
+                    ecb(forwardedPacket, ipHeader, Socket::ERROR_NOROUTETOHOST);
                     return true;
                 }
                 // Next, try to find a route
@@ -575,7 +576,7 @@ ATPStaticRouting::RouteInput(Ptr<const Packet> p,
                 if (rtentry)
                 {
                     NS_LOG_LOGIC("Found unicast destination- calling unicast callback");
-                    ucb(rtentry, aggregatedPacket, ipHeader); // unicast forwarding callback
+                    ucb(rtentry, forwardedPacket, ipHeader); // unicast forwarding callback
                     return true;
                 }
                 else

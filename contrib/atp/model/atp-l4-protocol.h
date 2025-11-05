@@ -86,7 +86,7 @@ class ATPL4Protocol : public IpL4Protocol
     
     void SetEnableAggregation(bool enable);
     Ptr<Packet> AggregatePacket(Ptr<Packet> packet);
-    Ptr<Packet> AggregateStart(Ptr<Packet> packet);
+    Ptr<Packet> FilterPacket(Ptr<Packet> packet);
   
   protected:
     void DoDispose() override;
@@ -102,8 +102,6 @@ class ATPL4Protocol : public IpL4Protocol
     IpL4Protocol::DownTargetCallback m_downTarget;   //!< Callback to send packets over IPv4
     IpL4Protocol::DownTargetCallback6 m_downTarget6; //!< Callback to send packets over IPv6
 
-    // 聚合器相关
-    bool m_enableAggregation;
     static const uint32_t MAX_AGGREGATORS = 8192 * 8;  //!< Maximum number of aggregators
     std::vector<Aggregator> m_aggregators;         //!< Vector of aggregators
 

@@ -95,10 +95,10 @@
             "MIMode": "lldb"
         },
         {
-            "name": "Debug atp-hierarchical-aggregation",
+            "name": "Debug atp-v1-1job",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/contrib/atp/examples/ns3.43-atp-hierarchical-aggregation-default",
+            "program": "${workspaceFolder}/build/contrib/atp/examples/ns3.43-atp-v1-1job-default",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

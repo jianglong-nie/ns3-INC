@@ -6,11 +6,7 @@ namespace ns3 {
 NS_LOG_COMPONENT_DEFINE("Aggregator");
 
 Aggregator::Aggregator()
-    : m_jobId(0),
-      m_seqNum(0),
-      m_faninDegree(0b00000000),
-      m_bitmap(0b00000000),
-      m_packet(nullptr)
+    : m_packet(nullptr)
 {
     NS_LOG_FUNCTION(this);
 }
@@ -23,52 +19,67 @@ Aggregator::~Aggregator()
     m_packet = nullptr;
 }
 
-void
-Aggregator::SetFaninDegree(uint8_t faninDegree)
-{
-    NS_LOG_FUNCTION(this << faninDegree);
-    m_faninDegree = faninDegree;
-}
-
 bool
-Aggregator::AddPacket(Ptr<const Packet> packet)
+Aggregator::ProcessPacket(Ptr<Packet> packet)
 {
     NS_LOG_FUNCTION(this << packet);
 
     // 获取ATPTag
     ATPTag atpTag;
     packet->PeekPacketTag(atpTag);
+    packet->RemovePacketTag(atpTag);
 
-    if (m_packet == nullptr)
-    {
+    if (m_packet == nullptr) {
         m_packet = packet->Copy();
     }
 
+    uint8_t temp_faninDegree = 0;
+    uint32_t temp_bitmap = 0;
+    uint8_t temp_edgeSwitchIdentifier = 0;
     if (atpTag.m_edgeSwitchIdentifier == 0) {
-        m_bitmap = m_bitmap | atpTag.m_bitmap0;
-        if (m_bitmap == m_faninDegree) {
-            m_packet->RemovePacketTag(atpTag);
-            atpTag.SetBitMap0(m_bitmap);
-            atpTag.m_edgeSwitchIdentifier += 1;
-            m_packet->AddPacketTag(atpTag);
-            return true;  // 聚合完成，可以取出数据包了
-        }
+        temp_bitmap = atpTag.m_bitmap0;
+        temp_faninDegree = atpTag.m_faninDegree0;
+        temp_edgeSwitchIdentifier = atpTag.m_edgeSwitchIdentifier;
+        atpTag.m_edgeSwitchIdentifier += 1;
+    }
+    else {
+        temp_bitmap = atpTag.m_bitmap1;
+        temp_faninDegree = atpTag.m_faninDegree1;
+        temp_edgeSwitchIdentifier = atpTag.m_edgeSwitchIdentifier;
+        atpTag.m_edgeSwitchIdentifier = 0;
+    }
+
+    // 判断该包是否被聚合过了, temp_bitmap的某个bit为1,判断m_bitmap某个位置bit是否为1
+    if ((temp_bitmap & m_bitmap) == temp_bitmap){
+        m_ecn = atpTag.m_ecn;
         return false;
     }
     else {
-        m_bitmap = m_bitmap | atpTag.m_bitmap1;
-        if (m_bitmap == m_faninDegree) {
-            m_packet->RemovePacketTag(atpTag);
-            atpTag.SetBitMap1(m_bitmap);
+        m_bitmap = m_bitmap | temp_bitmap;
+        m_count++;
+        if (m_count == temp_faninDegree) {
+            if (temp_edgeSwitchIdentifier == 0) {
+                atpTag.m_bitmap0 = m_bitmap;
+            }
+            else if (temp_edgeSwitchIdentifier == 1) {
+                atpTag.m_bitmap1 = m_bitmap;
+            }
+            else {
+                NS_LOG_ERROR("Edge switch identifier is invalid!");
+            }
+            m_packet = packet->Copy();
             m_packet->AddPacketTag(atpTag);
-            return true;  // 聚合完成，可以取出数据包了
+            return true;
         }
-        return false;
+        else {
+            m_ecn = atpTag.m_ecn;
+            return false;
+        }
     }
 }
 
 Ptr<Packet>
-Aggregator::GetAggregatedPacket() const
+Aggregator::GetResultPacket() const
 {
     NS_LOG_FUNCTION(this);
     return m_packet;
@@ -78,8 +89,8 @@ void
 Aggregator::Reset()
 {
     NS_LOG_FUNCTION(this);
-    m_bitmap = 0b00000000;
-    m_faninDegree = 0b00000000;
+    m_bitmap = 0;
+    m_count = 0;
     m_jobId = 0;
     m_seqNum = 0;
     m_packet = nullptr;

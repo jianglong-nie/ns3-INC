@@ -250,19 +250,20 @@ ATPBulkSendApplication::SendData(const Address& from, const Address& to)
         else if (m_enableATPTag)
         {
             ATPTag atpTag;
-            atpTag.SetPacketType(ATPTag::DATA);
             atpTag.SetJobId(m_jobId);
             atpTag.SetFaninDegree0(m_faninDegree0);
             atpTag.SetFaninDegree1(m_faninDegree1);
-            atpTag.SetBitmap0(m_bitmap0);
-            atpTag.SetBitmap1(m_bitmap1);
+            atpTag.SetBitMap0(m_bitmap0);
+            atpTag.SetBitMap1(m_bitmap1);
             m_seqNum++; // 序列号自增，初值0，加加后从1开始计数
-            atpTag.SetSeqNumber(m_seqNum);
+            atpTag.SetSeqNum(m_seqNum);
             atpTag.SetSize(toSend);
+            
             packet = Create<Packet>(toSend);
             packet->AddPacketTag(atpTag);
-            NS_LOG_INFO("Adding ATP tag with JobId=" << m_jobId << ", SeqNum=" << m_seqNum
-                                << ", PacketType=" << static_cast<int>(atpTag.GetPacketType()));
+            NS_LOG_INFO("BulkSendApplication sending packet with JobId=" << m_jobId 
+                                                          << ", SeqNum=" << m_seqNum
+                                                          << ", Size=" << toSend);
             // Trace before adding tag, for consistency with PacketSink
             m_txTrace(packet);
         }
@@ -351,13 +352,13 @@ ATPBulkSendApplication::DataSend(Ptr<Socket> socket, uint32_t)
 }
 
 void
-ATPBulkSendApplication::SetJobId(uint32_t jobId)
+ATPBulkSendApplication::SetJobId(uint8_t jobId)
 {
     NS_LOG_FUNCTION(this << jobId);
     m_jobId = jobId;
 }
 
-uint32_t
+uint8_t
 ATPBulkSendApplication::GetJobId() const
 {
     NS_LOG_FUNCTION(this);
@@ -367,7 +368,7 @@ ATPBulkSendApplication::GetJobId() const
 void
 ATPBulkSendApplication::SetFaninDegree0(uint8_t faninDegree0)
 {
-    NS_LOG_FUNCTION(this << faninDegree);
+    NS_LOG_FUNCTION(this);
     m_faninDegree0 = faninDegree0;
 }
 
@@ -393,13 +394,13 @@ ATPBulkSendApplication::GetFaninDegree1() const
 }
 
 void
-ATPBulkSendApplication::SetBitmap0(uint8_t bitmap0)
+ATPBulkSendApplication::SetBitmap0(uint32_t bitmap0)
 {
     NS_LOG_FUNCTION(this << bitmap0);
     m_bitmap0 = bitmap0;
 }
 
-uint8_t
+uint32_t
 ATPBulkSendApplication::GetBitmap0() const
 {
     NS_LOG_FUNCTION(this);
@@ -407,35 +408,26 @@ ATPBulkSendApplication::GetBitmap0() const
 }
 
 void
-ATPBulkSendApplication::SetBitmap1(uint8_t bitmap1)
+ATPBulkSendApplication::SetBitmap1(uint32_t bitmap1)
 {
     NS_LOG_FUNCTION(this << bitmap1);
     m_bitmap1 = bitmap1;
 }
 
-uint8_t
+uint32_t
 ATPBulkSendApplication::GetBitmap1() const
 {
     NS_LOG_FUNCTION(this);
     return m_bitmap1;
 }
 void
-ATPBulkSendApplication::Setup(Address sinkAddress, Ptr<Socket> socket, uint64_t maxBytes, uint32_t jobId)
+ATPBulkSendApplication::Setup(Address sinkAddress, Ptr<Socket> socket, uint64_t maxBytes, uint8_t jobId)
 {   
     NS_LOG_FUNCTION(this << sinkAddress << socket << maxBytes << jobId);
     m_peer = sinkAddress;
     m_socket = socket;
     m_maxBytes = maxBytes;
     m_jobId = jobId;
-}
-
-ATPBulkSendApplication::SetINCConfiguration(uint8_t faninDegree0, uint8_t faninDegree1, uint8_t bitmap0, uint8_t bitmap1)
-{
-    NS_LOG_FUNCTION(this << faninDegree0 << faninDegree1 << bitmap0 << bitmap1);
-    m_faninDegree0 = faninDegree0;
-    m_faninDegree1 = faninDegree1;
-    m_bitmap0 = bitmap0;
-    m_bitmap1 = bitmap1;
 }
 
 void

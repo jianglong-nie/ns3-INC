@@ -34,27 +34,17 @@ class ATPTag : public Tag
     void SetFaninDegree1(uint8_t faninDegree1);
     uint8_t GetFaninDegree1() const;
 
-    void SetBitMap0(uint8_t bitmap0);
-    uint8_t GetBitMap0() const;
+    void SetBitMap0(uint32_t bitmap0);
+    uint32_t GetBitMap0() const;
 
-    void SetBitMap1(uint8_t bitmap1);
-    uint8_t GetBitMap1() const;
-
-    // 定义数据包类型
-    // 使用具有描述性名称的常量，但底层仍然是 uint8_t
-    static constexpr uint8_t UNKNOWN = 0;
-    static constexpr uint8_t DATA = 1;
-    static constexpr uint8_t ACK = 2;
-    static constexpr uint8_t AGG = 3;
-
-    void SetPacketType(uint8_t type);
-    uint8_t GetPacketType() const;
+    void SetBitMap1(uint32_t bitmap1);
+    uint32_t GetBitMap1() const;
 
     void SetJobId(uint8_t jobId);
     uint8_t GetJobId() const;
 
-    void SetSeqNumber(uint32_t seqNum);
-    uint32_t GetSeqNumber() const;
+    void SetSeqNum(uint32_t seqNum);
+    uint32_t GetSeqNum() const;
 
     void SetSize(uint16_t size);
     uint16_t GetSize() const;
@@ -86,13 +76,14 @@ class ATPTag : public Tag
 
     uint8_t m_faninDegree0{0};
     uint8_t m_faninDegree1{0};
-    uint8_t m_bitmap0{0};
-    uint8_t m_bitmap1{0};
-    uint8_t m_atpPacketType{0};
+    uint32_t m_bitmap0{0};
+    uint32_t m_bitmap1{0};
     uint8_t m_jobId{0};    //!< Job ID
     uint32_t m_seqNum{0};   //!< Sequence number
     uint8_t m_ecn{0};      //!< ECN
     uint8_t m_isAck{0};
+    uint8_t m_overflow{0};
+    uint8_t m_resend{0};
     uint8_t m_collision{0};
     uint8_t m_edgeSwitchIdentifier{0};
     uint16_t m_size{0};    //!< Size of data to send each time
