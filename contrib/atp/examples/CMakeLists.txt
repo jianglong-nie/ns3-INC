@@ -168,3 +168,12 @@ build_lib_example(
                       ${libapplications}
                       ${libpoint-to-point}
 )
+
+build_lib_example(
+    NAME atp-hierarchical-aggregation-spineleaf-json
+    SOURCE_FILES atp-hierarchical-aggregation-spineleaf-json.cc
+    LIBRARIES_TO_LINK ${libatp}
+                      ${libinternet}
+                      ${libapplications}
+                      ${libpoint-to-point}
+)

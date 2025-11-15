@@ -148,7 +148,7 @@ main(int argc, char* argv[])
     //
     PointToPointHelper pointToPoint;
     pointToPoint.SetDeviceAttribute("DataRate", StringValue("100Gbps"));
-    pointToPoint.SetChannelAttribute("Delay", StringValue("3us"));
+    pointToPoint.SetChannelAttribute("Delay", StringValue("1us"));
 
     NetDeviceContainer dev_w0s0, dev_w1s0, dev_w2s0, dev_w3s0;
     NetDeviceContainer dev_w4s1, dev_w5s1, dev_w6s1, dev_w7s1;
