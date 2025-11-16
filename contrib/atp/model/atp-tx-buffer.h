@@ -29,7 +29,7 @@ public:
 
     Ptr<Packet> m_packet;       //!< 数据包
     uint32_t m_packetId;        //!< 数据包ID
-    uint32_t m_lastSentTime;    //!< 最后发送时间
+    uint32_t m_lastSentTime;    //!< 最后发送时间（微秒）
 };
 
 /**
@@ -111,6 +111,13 @@ class ATPTxBuffer : public Object
      * \brief 重传数据包
      */
     Ptr<Packet> RetransmitPacket();
+    
+    /**
+     * \brief 检查超时的数据包并移到重传队列
+     * \param timeoutUs 超时时间（微秒）
+     * \return 超时的数据包数量
+     */
+    uint32_t CheckAndMoveTimeoutPackets(uint32_t timeoutUs);
 
     /**
      * \brief 获取已发送队列的第一个数据包ID

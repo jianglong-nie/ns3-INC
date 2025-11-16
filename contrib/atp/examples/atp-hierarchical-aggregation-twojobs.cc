@@ -92,24 +92,35 @@ CwndChange_job2(uint32_t oldCwnd, uint32_t newCwnd)
 int
 main(int argc, char* argv[])
 {
+    // 日志配置（可根据需要启用）
     // LogComponentEnable("ATPBulkSendApplication", LOG_LEVEL_ALL);
     // LogComponentEnable("PacketSink", LOG_LEVEL_ALL);
     // LogComponentEnable("ATPSocket", LOG_LEVEL_ALL);
     // LogComponentEnable("ATPL4Protocol", LOG_LEVEL_ALL);
     // LogComponentEnable("PointToPointNetDevice", LOG_LEVEL_INFO);
+    
+    // 注意：超时重传机制已启用
+    // 默认超时时间：500微秒，检查间隔：100微秒
+    // 可通过下方参数调整
 
     cwndStream_job1.open("atp-result/trace-ha-twojobs/job1-cwnd-trace-ha-twojobs.txt", std::ofstream::out | std::ofstream::trunc);
     cwndStream_job2.open("atp-result/trace-ha-twojobs/job2-cwnd-trace-ha-twojobs.txt", std::ofstream::out | std::ofstream::trunc);
     sendBytesStream_job1.open("atp-result/trace-ha-twojobs/job1-sendBytes-trace-ha-twojobs.txt", std::ofstream::out | std::ofstream::trunc);
     sendBytesStream_job2.open("atp-result/trace-ha-twojobs/job2-sendBytes-trace-ha-twojobs.txt", std::ofstream::out | std::ofstream::trunc);
 
-    uint32_t maxBytes = 100;
-    Time stopTime = Seconds(1.0) + MicroSeconds(20000); // 约8us为一个rtt时间
+    uint32_t maxBytes = 0;
+    Time stopTime = Seconds(1.0) + MicroSeconds(10000); // 约8us为一个rtt时间
 
     // 设置job1和job2初始拥塞窗口
     uint64_t initialTimestamp = 1000000;
     uint32_t job1_initCwnd = 1;
     uint32_t job2_initCwnd = 1;
+    
+    // 设置超时重传参数
+    // 当数据包发送后超过retxTimeout时间未收到ACK，将触发重传
+    // retxCheckInterval是定期检查超时的间隔时间
+    Time retxTimeout = MicroSeconds(12);         // 重传超时时间：12us（可调整）
+    Time retxCheckInterval = MicroSeconds(6);   // 超时检查间隔：6us（可调整）
 
     // 在文件打开后，写入初始拥塞窗口值
     cwndStream_job1 << initialTimestamp << "\t" << job1_initCwnd << std::endl;
@@ -343,17 +354,39 @@ main(int argc, char* argv[])
     Address w6Address(InetSocketAddress(ip_w6s1.GetAddress(0), sendPort2));
     Address w7Address(InetSocketAddress(ip_w7s1.GetAddress(0), sendPort2));
 
-    // 设置job1初始拥塞窗口
+    // 设置job1初始拥塞窗口和超时参数
     w0job1_ATPSocket->SetInitCwnd(job1_initCwnd);
+    w0job1_ATPSocket->SetRetxTimeout(retxTimeout);
+    w0job1_ATPSocket->SetRetxCheckInterval(retxCheckInterval);
+    
     w1job1_ATPSocket->SetInitCwnd(job1_initCwnd);
+    w1job1_ATPSocket->SetRetxTimeout(retxTimeout);
+    w1job1_ATPSocket->SetRetxCheckInterval(retxCheckInterval);
+    
     w4job1_ATPSocket->SetInitCwnd(job1_initCwnd);
+    w4job1_ATPSocket->SetRetxTimeout(retxTimeout);
+    w4job1_ATPSocket->SetRetxCheckInterval(retxCheckInterval);
+    
     w5job1_ATPSocket->SetInitCwnd(job1_initCwnd);
+    w5job1_ATPSocket->SetRetxTimeout(retxTimeout);
+    w5job1_ATPSocket->SetRetxCheckInterval(retxCheckInterval);
 
-    // 设置job2初始拥塞窗口
+    // 设置job2初始拥塞窗口和超时参数
     w2job2_ATPSocket->SetInitCwnd(job2_initCwnd);
+    w2job2_ATPSocket->SetRetxTimeout(retxTimeout);
+    w2job2_ATPSocket->SetRetxCheckInterval(retxCheckInterval);
+    
     w3job2_ATPSocket->SetInitCwnd(job2_initCwnd);
+    w3job2_ATPSocket->SetRetxTimeout(retxTimeout);
+    w3job2_ATPSocket->SetRetxCheckInterval(retxCheckInterval);
+    
     w6job2_ATPSocket->SetInitCwnd(job2_initCwnd);
+    w6job2_ATPSocket->SetRetxTimeout(retxTimeout);
+    w6job2_ATPSocket->SetRetxCheckInterval(retxCheckInterval);
+    
     w7job2_ATPSocket->SetInitCwnd(job2_initCwnd);
+    w7job2_ATPSocket->SetRetxTimeout(retxTimeout);
+    w7job2_ATPSocket->SetRetxCheckInterval(retxCheckInterval);
     
     // Configure w0job1App
     uint8_t job1Id = 1;
