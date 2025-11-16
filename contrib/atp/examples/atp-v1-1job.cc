@@ -15,18 +15,42 @@ using namespace std;
 
 NS_LOG_COMPONENT_DEFINE("ATP-V1-1job");
 
+std::ofstream sendBytesStream_job1;
+uint64_t lastTimeJob1Bytes = 0;
+
+// 记录发送端发送的总字节数
+static void
+MeasurementTxJob1(Ptr<ATPSocket> socket)
+{
+    Time now = Simulator::Now();
+
+    uint64_t currentTimeJob1Bytes = socket->GetTotalTxBytes();  // job1
+        
+    // 100us内发送的字节数
+    uint64_t SendJob1BytesPer100ms = currentTimeJob1Bytes - lastTimeJob1Bytes;
+
+    // 记录总字节数和本100us内发送的字节数
+    sendBytesStream_job1 << now.GetMicroSeconds() << "\t" << currentTimeJob1Bytes << "\t" << SendJob1BytesPer100ms << std::endl;
+    
+    lastTimeJob1Bytes = currentTimeJob1Bytes;
+                            
+    // 调度下一个测量
+    Simulator::Schedule(MicroSeconds(100), &MeasurementTxJob1, socket);
+}
+
 int
 main(int argc, char* argv[])
 {
     LogComponentEnable("ATP-V1-1job", LOG_LEVEL_INFO);
     // LogComponentEnable("ATPBulkSendApplication", LOG_LEVEL_ALL);
-    // LogComponentEnable("ATPSocket", LOG_LEVEL_ALL);
-   // LogComponentEnable("ATPL4Protocol", LOG_LEVEL_ALL);
+    //LogComponentEnable("ATPSocket", LOG_LEVEL_INFO);
+    //LogComponentEnable("ATPL4Protocol", LOG_LEVEL_INFO);
     // LogComponentEnable("PointToPointNetDevice", LOG_LEVEL_INFO);
 
+    sendBytesStream_job1.open("atp-result/trace-atp-result/job1-sendBytes-v1-1job.txt", std::ofstream::out | std::ofstream::trunc);
 
     Time startTime = Seconds(1.0);
-    Time stopTime = Seconds(10.0);
+    Time stopTime = Seconds(1.0) + MicroSeconds(1000);
     
 
     NS_LOG_INFO("Build topology");
@@ -34,8 +58,8 @@ main(int argc, char* argv[])
     nodes.Create(8);
  
     PointToPointHelper pointToPoint;
-    pointToPoint.SetDeviceAttribute("DataRate", StringValue("5Mbps"));
-    pointToPoint.SetChannelAttribute("Delay", StringValue("2ms"));
+    pointToPoint.SetDeviceAttribute("DataRate", StringValue("100Gbps"));
+    pointToPoint.SetChannelAttribute("Delay", StringValue("1us"));
 
     // 创建各个连接的设备容器
     NetDeviceContainer link0_4 = pointToPoint.Install(nodes.Get(0), nodes.Get(4));
@@ -105,6 +129,13 @@ main(int argc, char* argv[])
     sinkApp->SetSocket(sinkATPSocket);
     sinkATPSocket->Bind(sinkAddress);
     sinkATPSocket->Listen();
+    
+    // 添加地址映射，用于发送multi-ack
+    uint16_t sendPort = 11;
+    sinkATPSocket->AddAddressMapping(1, interfaces0_4.GetAddress(0), sendPort);  // job1 - n0
+    sinkATPSocket->AddAddressMapping(1, interfaces1_4.GetAddress(0), sendPort);  // job1 - n1
+    sinkATPSocket->AddAddressMapping(1, interfaces2_5.GetAddress(0), sendPort);  // job1 - n2
+    sinkATPSocket->AddAddressMapping(1, interfaces3_5.GetAddress(0), sendPort);  // job1 - n3
 
     // start sinkApp
     sinkApp->SetStartTime(Seconds(0.0));
@@ -112,14 +143,12 @@ main(int argc, char* argv[])
     nodes.Get(7)->AddApplication(sinkApp);
 
     NS_LOG_INFO("Create BulkSend Applications.");
-    
+
     // 构建socket和bulkapp 的ptr list
     vector<Ptr<Socket>> socketPtrList;
     vector<Ptr<ATPSocket>> atpSocketPtrList;
     vector<Ptr<ATPBulkSendApplication>> atpBulkSendAppPtrList;
     vector<Address> addrList;
-
-    uint16_t sendPort = 11;
     // 为每个发送节点获取正确的地址
     Ipv4InterfaceContainer* nodeInterfaces[4] = {&interfaces0_4, &interfaces1_4, &interfaces2_5, &interfaces3_5};
     for (int i = 0; i < 4; i++) {
@@ -138,7 +167,7 @@ main(int argc, char* argv[])
     // 进行各种参数的设置
     uint32_t initCwnd = 1;
     uint32_t jobId = 1;
-    uint32_t maxBytes = 100;
+    uint32_t maxBytes = 0;
     uint8_t fanInDegree0 = 2;
     uint8_t fanInDegree1 = 2;
     uint32_t bitmap0 = 0;
@@ -146,6 +175,11 @@ main(int argc, char* argv[])
     for (int i = 0; i < 4; i++) {
         Ptr<ATPSocket> atpSocketPtr = atpSocketPtrList[i];
         Ptr<ATPBulkSendApplication> atpBulkPtr = atpBulkSendAppPtrList[i];
+
+        // 设置超时参数（可选）
+        atpSocketPtr->SetRetxTimeout(MicroSeconds(12));  // rtt = 6us
+        atpSocketPtr->SetRetxCheckInterval(MicroSeconds(3));  // 每3us检查一次
+
 
         atpBulkPtr->Setup(sinkAddress, atpSocketPtr, maxBytes, jobId);
         atpBulkPtr->SetEnableATPTag(true);
@@ -161,7 +195,9 @@ main(int argc, char* argv[])
         atpSocketPtr->SetConnectCallback(MakeCallback(&ATPBulkSendApplication::ConnectionSucceeded, atpBulkPtr),
                                 MakeCallback(&ATPBulkSendApplication::ConnectionFailed, atpBulkPtr));
         atpSocketPtr->SetSendCallback(MakeCallback(&ATPBulkSendApplication::DataSend, atpBulkPtr));
-        atpSocketPtr->Bind(nodeInterfaces[i]->GetAddress(0));
+        // 必须绑定IP地址和端口，这样ACK才能正确返回
+        Address bindAddr = InetSocketAddress(nodeInterfaces[i]->GetAddress(0), sendPort);
+        atpSocketPtr->Bind(bindAddr);
         atpSocketPtr->Connect(sinkAddress);
 
         nodes.Get(i)->AddApplication(atpBulkPtr);
@@ -212,6 +248,9 @@ main(int argc, char* argv[])
     staticRouting_n7->AddHostRouteTo(interfaces2_5.GetAddress(0), interfaces6_7.GetAddress(0), 1);   // 到n2经过n6
     staticRouting_n7->AddHostRouteTo(interfaces3_5.GetAddress(0), interfaces6_7.GetAddress(0), 1);   // 到n3经过n6
     
+
+    Simulator::Schedule(Seconds(1.0), &MeasurementTxJob1, atpSocketPtrList[0]);
+
     NS_LOG_INFO("Run Simulation.");
     Simulator::Stop(stopTime);
     Simulator::Run();

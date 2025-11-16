@@ -95,6 +95,20 @@ ATPSocket::SetInitCwnd(uint32_t initCwnd)
 }
 
 void
+ATPSocket::SetRetxTimeout(Time timeout)
+{
+    NS_LOG_FUNCTION(this << timeout);
+    m_retxTimeout = timeout;
+}
+
+void
+ATPSocket::SetRetxCheckInterval(Time interval)
+{
+    NS_LOG_FUNCTION(this << interval);
+    m_retxCheckInterval = interval;
+}
+
+void
 ATPSocket::SetNode(Ptr<Node> node)
 {
     NS_LOG_FUNCTION(this << node);
@@ -220,6 +234,10 @@ ATPSocket::CancelAllTimers()
     NS_LOG_FUNCTION(this);
     m_sendWindowDataEvent.Cancel();
     m_retxEvent.Cancel();
+    m_retxTimeoutCheckEvent.Cancel();
+    m_ecnTimerEvent.Cancel();
+    m_sendAckEvent.Cancel();
+    m_sendMultiAckEvent.Cancel();
 }
 
 void
@@ -392,6 +410,14 @@ ATPSocket::Connect(const Address& address)
         m_defaultAddress = Address(transport.GetIpv4());
         m_defaultPort = transport.GetPort();
         m_connected = true;
+        
+        // 启动超时检查定时器
+        if (!m_retxTimeoutCheckEvent.IsPending()) {
+            m_retxTimeoutCheckEvent = Simulator::Schedule(m_retxCheckInterval,
+                                                           &ATPSocket::CheckRetransmitTimeout,
+                                                           this);
+        }
+        
         NotifyConnectionSucceeded(); // 通知连接成功，由应用层来设置回调
     }
     else
@@ -555,6 +581,7 @@ ATPSocket::DoSend(Ptr<Packet> p)
 
     if (Ipv4Address::IsMatchingType(m_defaultAddress))
     {
+        m_totalTxBytes += p->GetSize();
         return DoSendTo(p, Ipv4Address::ConvertFrom(m_defaultAddress), m_defaultPort);
     }
 
@@ -642,6 +669,38 @@ ATPSocket::Retransmit()
     while (m_txBuffer->HasPacketToRetransmit()) {
         Ptr<Packet> packet = m_txBuffer->RetransmitPacket();
         DoSend(packet);
+    }
+}
+
+void
+ATPSocket::CheckRetransmitTimeout()
+{
+    NS_LOG_FUNCTION(this);
+    
+    // 检查是否有超时的数据包（使用微秒）
+    uint32_t timeoutUs = static_cast<uint32_t>(m_retxTimeout.GetMicroSeconds());
+    uint32_t timeoutCount = m_txBuffer->CheckAndMoveTimeoutPackets(timeoutUs);
+    
+    if (timeoutCount > 0) {
+        NS_LOG_WARN("CheckRetransmitTimeout: Found " << timeoutCount 
+                    << " timeout packets at time " << Simulator::Now().GetSeconds() << "s");
+        
+        // 触发重传
+        Retransmit();
+        
+        // 由于发生超时，可能需要减小拥塞窗口（类似于ECN机制）
+        if (!m_ecnTimerRunning) {
+            m_txBuffer->ProcessCongestion(true);
+            m_ecnTimerEvent = Simulator::Schedule(MicroSeconds(200), &ATPSocket::ResetEcnTimer, this);
+            m_ecnTimerRunning = true;
+        }
+    }
+    
+    // 继续调度下一次检查
+    if (!m_shutdownSend && m_connected) {
+        m_retxTimeoutCheckEvent = Simulator::Schedule(m_retxCheckInterval,
+                                                       &ATPSocket::CheckRetransmitTimeout,
+                                                       this);
     }
 }
 

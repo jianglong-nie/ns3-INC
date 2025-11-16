@@ -519,7 +519,7 @@ ATPStaticRouting::RouteInput(Ptr<const Packet> p,
             // 继续正常的路由处理
             if (forwardedPacket == nullptr)
             {
-                printf("forwardedPacket is nullptr\n");
+                //printf("forwardedPacket is nullptr\n");
                 return true;
             }
             else

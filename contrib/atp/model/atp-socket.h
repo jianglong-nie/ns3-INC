@@ -17,6 +17,7 @@
 #include "ns3/node.h"
 #include "ns3/sequence-number.h"
 #include "ns3/traced-value.h"
+#include "ns3/nstime.h"
 
 #include <queue>
 #include <stdint.h>
@@ -106,8 +107,16 @@ class ATPSocket : public Socket
 
     // 设置初始拥塞窗口
     void SetInitCwnd(uint32_t initCwnd);
+    
+    // 设置重传超时时间
+    void SetRetxTimeout(Time timeout);
+    
+    // 设置超时检查间隔
+    void SetRetxCheckInterval(Time interval);
 
     void SetSwitchBitmap(uint32_t s_bitmap);
+
+    uint64_t GetTotalTxBytes() const { return m_totalTxBytes; }
 
   protected:
     void SendWindowData();
@@ -134,6 +143,9 @@ class ATPSocket : public Socket
 
     // 重传数据包
     void Retransmit();
+    
+    // 检查超时的数据包
+    void CheckRetransmitTimeout();
 
     // 连接到ATP/IP的其它层
     Ipv4EndPoint* m_endPoint;          // 本地端点
@@ -155,6 +167,7 @@ class ATPSocket : public Socket
     EventId m_ecnTimerEvent;                        // 添加ECN计时器
     EventId m_sendWindowDataEvent{};                //!< micro-delay event to send pending data
     EventId m_retxEvent{};                          //!< Retransmission event
+    EventId m_retxTimeoutCheckEvent{};              //!< Retransmission timeout check event
     EventId m_sendAckEvent{};                       //!< Send ACK event
     EventId m_sendMultiAckEvent{};                  //!< Send ACK event
 
@@ -169,6 +182,9 @@ class ATPSocket : public Socket
     uint32_t MAX_AGGREGATORS = 8192 * 8;
     std::vector<Aggregator> m_aggregators;          // 聚合器
 
+    // 记录发送的总字节数
+    uint64_t m_totalTxBytes = 0;
+
     // 拥塞控制
     uint32_t m_nextSeqNo;              // 下一个序列号
     uint32_t m_highestRxSeqNo;         // 最高接收序列号
@@ -176,13 +192,17 @@ class ATPSocket : public Socket
     uint32_t m_ssthresh;               // 慢启动阈值
     uint32_t m_mss;                    // 最大报文段大小
     
+    // 超时重传参数
+    Time m_retxTimeout{MicroSeconds(500)};  // 重传超时时间，默认500微秒
+    Time m_retxCheckInterval{MicroSeconds(100)};  // 超时检查间隔，默认100微秒
+    
     // Ipv4EndPoint* m_endPoint;          // 本地端点
     // Address m_peerAddress;             // 对端地址
     TracedCallback<Ptr<const Packet>> m_txTrace;  // 发送跟踪
     TracedCallback<Ptr<const Packet>> m_rxTrace;  // 接收跟踪
 
     // 用于判断数据包是否是完全聚合的
-    uint32_t m_switch_bitmap1 = 3;                // 当前交换机的bitmap1
+    uint32_t m_switch_bitmap1 = 3;                // 当前交换机的bitmap1 = 3(0b0011)
     std::map<uint32_t, uint32_t> m_switch_bitmap0_map;  // 每个交换机的bitmap0
 
     // 存储已知节点的IP地址和端口映射
