@@ -57,7 +57,7 @@ main(int argc, char* argv[])
     sendBytesStream_job2.open("atp-result/trace-atp-result/job2-sendBytes-v1-2jobs.txt", std::ofstream::out | std::ofstream::trunc);
 
     Time startTime = Seconds(1.0);
-    Time stopTime = Seconds(1.0) + MicroSeconds(200);
+    Time stopTime = Seconds(1.0) + MicroSeconds(10000);
 
     NS_LOG_INFO("Build topology");
     NodeContainer nodes;
@@ -90,19 +90,19 @@ main(int argc, char* argv[])
 
     // 为关键链路设置ECN和阈值
     Ptr<PointToPointNetDevice> n8_n10_dev = DynamicCast<PointToPointNetDevice>(link8_10.Get(0));
-    n8_n10_dev->SetThreshold(80);
+    n8_n10_dev->SetThreshold(160);
     n8_n10_dev->SetEnableEcn(true);
 
     Ptr<PointToPointNetDevice> n9_n10_dev = DynamicCast<PointToPointNetDevice>(link9_10.Get(0));
-    n9_n10_dev->SetThreshold(80);
+    n9_n10_dev->SetThreshold(160);
     n9_n10_dev->SetEnableEcn(true);
 
     Ptr<PointToPointNetDevice> n10_n11_dev = DynamicCast<PointToPointNetDevice>(link10_11.Get(0));
-    n10_n11_dev->SetThreshold(80);
+    n10_n11_dev->SetThreshold(160);
     n10_n11_dev->SetEnableEcn(true);
 
     Ptr<PointToPointNetDevice> n10_n12_dev = DynamicCast<PointToPointNetDevice>(link10_12.Get(0));
-    n10_n12_dev->SetThreshold(80);
+    n10_n12_dev->SetThreshold(160);
     n10_n12_dev->SetEnableEcn(true);
 
     NS_LOG_INFO("Install internet stack");
@@ -175,6 +175,11 @@ main(int argc, char* argv[])
     sinkATPSocket1->AddAddressMapping(1, interfaces1_8.GetAddress(0), sendPort);  // job1 - n1
     sinkATPSocket1->AddAddressMapping(1, interfaces4_9.GetAddress(0), sendPort);  // job1 - n4
     sinkATPSocket1->AddAddressMapping(1, interfaces5_9.GetAddress(0), sendPort);  // job1 - n5
+
+    // 设置Job1的完整bitmap（用于判断聚合完成）
+    // bitmap0 = 0b11 (2个worker在每个第一层聚合点)
+    // bitmap1 = 0b11 (2个第一层聚合点)
+    sinkATPSocket1->SetJobBitmap(1, 0b11, 0b11);
     
     sinkApp_job1->SetStartTime(Seconds(0.0));
     sinkApp_job1->SetStopTime(stopTime);
@@ -198,6 +203,11 @@ main(int argc, char* argv[])
     sinkATPSocket2->AddAddressMapping(2, interfaces6_9.GetAddress(0), sendPort);  // job2 - n6
     sinkATPSocket2->AddAddressMapping(2, interfaces7_9.GetAddress(0), sendPort);  // job2 - n7
     
+    // 设置Job2的完整bitmap（用于判断聚合完成）
+    // bitmap0 = 0b11 (2个worker在每个第一层聚合点)
+    // bitmap1 = 0b11 (2个第一层聚合点)
+    sinkATPSocket2->SetJobBitmap(2, 0b11, 0b11);
+
     sinkApp_job2->SetStartTime(Seconds(0.0));
     sinkApp_job2->SetStopTime(stopTime);
     nodes.Get(12)->AddApplication(sinkApp_job2);
@@ -239,7 +249,7 @@ main(int argc, char* argv[])
 
         // 设置超时参数（可选）
         atpSock->SetRetxTimeout(MicroSeconds(12));  // rtt = 6us
-        atpSock->SetRetxCheckInterval(MicroSeconds(3));  // 每3us检查一次
+        atpSock->SetRetxCheckInterval(MicroSeconds(6));  // 每3us检查一次
         
         atpSock->SetInitCwnd(initCwnd);
         atpSock->SetConnectCallback(MakeCallback(&ATPBulkSendApplication::ConnectionSucceeded, bulkApp),
@@ -288,7 +298,7 @@ main(int argc, char* argv[])
         
         // 设置超时参数（可选）
         atpSock->SetRetxTimeout(MicroSeconds(12));  // rtt = 6us
-        atpSock->SetRetxCheckInterval(MicroSeconds(3));  // 每3us检查一次
+        atpSock->SetRetxCheckInterval(MicroSeconds(6));  // 每3us检查一次
         
         atpSock->SetInitCwnd(initCwnd);
         atpSock->SetConnectCallback(MakeCallback(&ATPBulkSendApplication::ConnectionSucceeded, bulkApp),

@@ -114,7 +114,7 @@ class ATPSocket : public Socket
     // 设置超时检查间隔
     void SetRetxCheckInterval(Time interval);
 
-    void SetSwitchBitmap(uint32_t s_bitmap);
+    void SetJobBitmap(uint8_t jobId, uint32_t bitmap0, uint32_t bitmap1);
 
     uint64_t GetTotalTxBytes() const { return m_totalTxBytes; }
 
@@ -146,6 +146,9 @@ class ATPSocket : public Socket
     
     // 检查超时的数据包
     void CheckRetransmitTimeout();
+
+    //转换两层bitmap为单层
+    uint32_t ConvertToFlatBitmap(uint32_t bitmap0, uint32_t bitmap1, uint8_t fanInDegree0);
 
     // 连接到ATP/IP的其它层
     Ipv4EndPoint* m_endPoint;          // 本地端点
@@ -180,7 +183,7 @@ class ATPSocket : public Socket
     Ptr<ATPTxBuffer> m_txBuffer;                    // 发送缓冲区，自定义的类型
     std::queue<std::pair<Ptr<Packet>, Address>> m_rxBuffer; // 接收缓冲区，是个队列
     uint32_t MAX_AGGREGATORS = 8192 * 8;
-    std::vector<Aggregator> m_aggregators;          // 聚合器
+    std::vector<JobAggregator> m_aggregators;          // 聚合器
 
     // 记录发送的总字节数
     uint64_t m_totalTxBytes = 0;
@@ -201,9 +204,8 @@ class ATPSocket : public Socket
     TracedCallback<Ptr<const Packet>> m_txTrace;  // 发送跟踪
     TracedCallback<Ptr<const Packet>> m_rxTrace;  // 接收跟踪
 
-    // 用于判断数据包是否是完全聚合的
-    uint32_t m_switch_bitmap1 = 3;                // 当前交换机的bitmap1 = 3(0b0011)
-    std::map<uint32_t, uint32_t> m_switch_bitmap0_map;  // 每个交换机的bitmap0
+    // 存储不同jobId : <bitmap0, bitmap1>
+    std::map<uint8_t, std::pair<uint32_t, uint32_t>> m_jobBitmapMap;
 
     // 存储已知节点的IP地址和端口映射
     std::map<uint8_t, std::vector<std::pair<Ipv4Address, uint16_t>>> m_jobAddressMap;

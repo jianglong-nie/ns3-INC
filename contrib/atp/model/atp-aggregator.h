@@ -47,6 +47,37 @@ public:
         
 };
 
+class JobAggregator
+{
+public:
+    JobAggregator();
+    ~JobAggregator();
+    
+    // 处理收到的包，更新 flat_bitmap
+    bool ProcessPacket(Ptr<Packet> packet, uint32_t incoming_flat_bitmap);
+    Ptr<Packet> GetResultPacket() const;
+
+    uint32_t m_flat_bitmap = 0;       //!< 扁平化的 bitmap，跟踪哪些 worker 已到达
+    uint8_t m_jobId = 0;
+    uint32_t m_seqNum = 0;
+    Ptr<Packet> m_packet = nullptr;   //!< 存储的数据包
+
+    bool IsEmpty() const {return m_flat_bitmap == 0;};
+    
+    // 检查是否完成聚合
+    bool IsComplete(uint32_t expected_flat_bitmap) const {
+        return m_flat_bitmap == expected_flat_bitmap;
+    };
+    
+    void Reset();
+
+    static std::size_t HashToIndex(uint8_t jobId, uint32_t seqNum, uint32_t MAX_AGGREGATORS) {
+        std::size_t h1 = std::hash<uint8_t>()(jobId);
+        std::size_t h2 = std::hash<uint32_t>()(seqNum);
+        return ((h1 << 1) ^ h2) % MAX_AGGREGATORS;
+    }
+};
+
 } // namespace ns3
 
 #endif /* ATP_AGGREGATOR_H */

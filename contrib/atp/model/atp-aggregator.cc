@@ -33,6 +33,8 @@ Aggregator::ProcessPacket(Ptr<Packet> packet)
         m_packet = packet->Copy();
     }
 
+    // 正常包的处理
+    NS_LOG_INFO("aggregator process normal packet");
     uint8_t temp_faninDegree = 0;
     uint32_t temp_bitmap = 0;
     uint8_t temp_edgeSwitchIdentifier = 0;
@@ -96,4 +98,64 @@ Aggregator::Reset()
     m_packet = nullptr;
 }
 
+//**********************************************************
+
+JobAggregator::JobAggregator()
+    : m_flat_bitmap(0),
+      m_jobId(0),
+      m_seqNum(0),
+      m_packet(nullptr)
+{
+    NS_LOG_FUNCTION(this);
+}
+
+JobAggregator::~JobAggregator()
+{
+    m_packet = nullptr;
+    NS_LOG_FUNCTION(this);
+}
+
+bool
+JobAggregator::ProcessPacket(Ptr<Packet> packet, uint32_t incoming_flat_bitmap)
+{
+    NS_LOG_FUNCTION(this << packet << incoming_flat_bitmap);
+    
+    // 检查这些 worker 是否已经到达过
+    uint32_t new_bits = incoming_flat_bitmap & (~m_flat_bitmap);
+    
+    if (new_bits == 0) {
+        // 这些 worker 的数据已经收到过了（重复包）
+        NS_LOG_INFO("JobAggregator: Duplicate packet, flat_bitmap already has these bits");
+        return false;
+    }
+    
+    // 更新 flat_bitmap：标记这些 worker 已到达
+    m_flat_bitmap |= incoming_flat_bitmap;
+    
+    // 存储第一个到达的数据包用于交付
+    if (!m_packet) {
+        m_packet = packet->Copy();
+    }
+    
+    NS_LOG_INFO("JobAggregator: Updated flat_bitmap to 0x" << std::hex << m_flat_bitmap);
+    
+    return false;  // 不在这里判断完成，让外部调用 IsComplete
+}
+
+Ptr<Packet>
+JobAggregator::GetResultPacket() const
+{
+    NS_LOG_FUNCTION(this);
+    return m_packet;
+}
+
+void
+JobAggregator::Reset()
+{
+    NS_LOG_FUNCTION(this);
+    m_flat_bitmap = 0;
+    m_jobId = 0;
+    m_seqNum = 0;
+    m_packet = nullptr;
+}
 } // namespace ns3
