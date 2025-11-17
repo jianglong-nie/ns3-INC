@@ -41,6 +41,17 @@ public:
         std::size_t h2 = std::hash<uint32_t>()(seqNum);
         return ((h1 << 1) ^ h2) % MAX_AGGREGATORS;
     }
+    
+    // 分层哈希函数：不同层使用不同的哈希计算，避免连环冲突
+    static std::size_t HashToIndexLayer(uint8_t jobId, uint32_t seqNum, uint8_t layerId, uint32_t MAX_AGGREGATORS) {
+        std::size_t h1 = std::hash<uint8_t>()(jobId);
+        std::size_t h2 = std::hash<uint32_t>()(seqNum);
+        std::size_t h3 = std::hash<uint8_t>()(layerId);
+        
+        // 使用layerId改变哈希计算方式，不同层产生不同的映射
+        return ((h1 << layerId) ^ h2 ^ (h3 << 2)) % MAX_AGGREGATORS;
+    }
+    
     /*
     static std::size_t HashToIndex(uint8_t jobId, uint32_t seqNum, uint32_t MAX_AGGREGATORS) {
         std::size_t seed = 0;

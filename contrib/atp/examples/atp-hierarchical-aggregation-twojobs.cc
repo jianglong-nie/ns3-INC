@@ -539,6 +539,12 @@ main(int argc, char* argv[])
     Ptr<ATPL4Protocol> atpl4_s0 = staticRouting_s0->GetATPL4Protocol();
     Ptr<ATPL4Protocol> atpl4_s1 = staticRouting_s1->GetATPL4Protocol();
     Ptr<ATPL4Protocol> atpl4_s2 = staticRouting_s2->GetATPL4Protocol();
+    
+    // 设置层ID：s0和s1是第一层聚合器，s2是第二层聚合器
+    // 不同层使用不同的哈希函数，避免连环冲突
+    atpl4_s0->SetLayerId(1);  // 第一层聚合
+    atpl4_s1->SetLayerId(1);  // 第一层聚合
+    atpl4_s2->SetLayerId(2);  // 第二层聚合
 
     // 这里得修改。还得改aggregator里的fanindegree
     // job1

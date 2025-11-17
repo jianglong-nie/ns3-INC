@@ -214,6 +214,19 @@ ATPL4Protocol::SetAggregatorFaninDegree(uint8_t jobId, uint8_t faninDegree)
     }
 }
 
+void
+ATPL4Protocol::SetLayerId(uint8_t layerId)
+{
+    NS_LOG_FUNCTION(this << static_cast<int>(layerId));
+    m_layerId = layerId;
+}
+
+uint8_t
+ATPL4Protocol::GetLayerId() const
+{
+    return m_layerId;
+}
+
 Ptr<Packet>
 ATPL4Protocol::AggregatePacket(Ptr<Packet> packet)
 {
@@ -224,10 +237,11 @@ ATPL4Protocol::AggregatePacket(Ptr<Packet> packet)
 
     NS_LOG_INFO("ATP DATA packet with jobId = " << static_cast<int>(atpTag.GetJobId())
                                                << ", seqNum = " << static_cast<int>(atpTag.GetSeqNumber())
-                                               << ", workerId = " << static_cast<int>(atpTag.GetWorkerId()));
+                                               << ", workerId = " << static_cast<int>(atpTag.GetWorkerId())
+                                               << ", layerId = " << static_cast<int>(m_layerId));
 
-    // 使用Aggregator类的哈希函数计算索引
-    std::size_t index = Aggregator::HashToIndex(atpTag.GetJobId(), atpTag.GetSeqNumber(), MAX_AGGREGATORS);
+    // 使用分层哈希函数计算索引，避免跨层连环冲突
+    std::size_t index = Aggregator::HashToIndexLayer(atpTag.GetJobId(), atpTag.GetSeqNumber(), m_layerId, MAX_AGGREGATORS);
     
     // 获取对应的聚合器
     Aggregator& aggregator = m_aggregators[index];
@@ -260,9 +274,6 @@ ATPL4Protocol::AggregatePacket(Ptr<Packet> packet)
                 newTag.SetPacketType(ATPTag::AGG);
             }
             aggregatedPacket->AddPacketTag(newTag);
-
-            // 重置聚合器
-            //aggregator.Reset();
 
             ATPTag aggcompletag;
             aggregatedPacket->PeekPacketTag(aggcompletag);
@@ -303,7 +314,8 @@ ATPL4Protocol::AggregateStart(Ptr<Packet> packet)
     {
         NS_LOG_INFO("ATPL4Protocol: Reset aggregator for jobId " << static_cast<int>(atpTag.GetJobId())
                                                << " seqNum " << static_cast<int>(atpTag.GetSeqNumber()));
-        std::size_t index = Aggregator::HashToIndex(atpTag.GetJobId(), atpTag.GetSeqNumber(), MAX_AGGREGATORS);
+        // 使用分层哈希函数计算索引，与聚合时使用相同的哈希方式
+        std::size_t index = Aggregator::HashToIndexLayer(atpTag.GetJobId(), atpTag.GetSeqNumber(), m_layerId, MAX_AGGREGATORS);
     
         // 获取对应的聚合器
         Aggregator& aggregator = m_aggregators[index];

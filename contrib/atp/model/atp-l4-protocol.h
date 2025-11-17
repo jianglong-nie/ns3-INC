@@ -88,6 +88,10 @@ class ATPL4Protocol : public IpL4Protocol
     Ptr<Packet> AggregatePacket(Ptr<Packet> packet);
     Ptr<Packet> AggregateStart(Ptr<Packet> packet);
     void SetAggregatorFaninDegree(uint8_t jobId, uint8_t faninDegree);
+    
+    // 设置层ID（用于分层哈希）
+    void SetLayerId(uint8_t layerId);
+    uint8_t GetLayerId() const;
   
   protected:
     void DoDispose() override;
@@ -105,6 +109,7 @@ class ATPL4Protocol : public IpL4Protocol
 
     // 聚合器相关
     bool m_enableAggregation;
+    uint8_t m_layerId{0};  //!< 层ID，用于分层哈希避免连环冲突
     static const uint32_t MAX_AGGREGATORS = 128;  //!< Maximum number of aggregators
     std::vector<Aggregator> m_aggregators;         //!< Vector of aggregators
 
