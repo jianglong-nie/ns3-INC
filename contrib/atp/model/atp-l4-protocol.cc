@@ -289,7 +289,14 @@ ATPL4Protocol::AggregatePacket(Ptr<Packet> packet)
             return nullptr;
         }
     }
-    return packet;
+    else
+    {
+        NS_LOG_INFO("ATP DATA packet with jobId = " << static_cast<int>(atpTag.GetJobId())
+        << ", seqNum = " << static_cast<int>(atpTag.GetSeqNumber())
+        << ", workerId = " << static_cast<int>(atpTag.GetWorkerId())
+        << ", layerId = " << static_cast<int>(m_layerId) << " detected hash collision. Returning original packet.");
+        return packet;
+    }
 }
 
 Ptr<Packet>

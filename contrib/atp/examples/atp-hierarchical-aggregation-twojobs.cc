@@ -96,7 +96,7 @@ main(int argc, char* argv[])
     // LogComponentEnable("ATPBulkSendApplication", LOG_LEVEL_ALL);
     // LogComponentEnable("PacketSink", LOG_LEVEL_ALL);
     // LogComponentEnable("ATPSocket", LOG_LEVEL_ALL);
-    // LogComponentEnable("ATPL4Protocol", LOG_LEVEL_ALL);
+     LogComponentEnable("ATPL4Protocol", LOG_LEVEL_ALL);
     // LogComponentEnable("PointToPointNetDevice", LOG_LEVEL_INFO);
     
     // 注意：超时重传机制已启用
@@ -109,7 +109,7 @@ main(int argc, char* argv[])
     sendBytesStream_job2.open("atp-result/trace-ha-twojobs/job2-sendBytes-trace-ha-twojobs.txt", std::ofstream::out | std::ofstream::trunc);
 
     uint32_t maxBytes = 0;
-    Time stopTime = Seconds(1.0) + MicroSeconds(10000); // 约8us为一个rtt时间
+    Time stopTime = Seconds(1.0) + MicroSeconds(201); // 约8us为一个rtt时间
 
     // 设置job1和job2初始拥塞窗口
     uint64_t initialTimestamp = 1000000;
