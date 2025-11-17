@@ -56,6 +56,9 @@ class ATPTag : public Tag
     void SetSize(uint16_t size);
     uint16_t GetSize() const;
 
+    void SetResend(uint8_t resend);
+    uint8_t GetResend() const;
+
     void SetEcn(uint8_t ecn);
     uint8_t GetEcn() const;
 
@@ -89,6 +92,7 @@ class ATPTag : public Tag
     uint32_t m_seqNum{0};   //!< Sequence number
     uint32_t m_ackNum{0};   //!< Ack number
     uint8_t m_ecn{0};      //!< ECN
+    uint8_t m_resend{0};   //!< Resend flag
     uint16_t m_size{0};    //!< Size of data to send each time
     uint16_t m_sourcePort{0xfffd};      //!< Source port
     uint16_t m_destinationPort{0xfffd}; //!< Destination port

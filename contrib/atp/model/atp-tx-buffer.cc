@@ -1,4 +1,5 @@
 #include "atp-tx-buffer.h"
+#include "atp-tag.h"
 #include "ns3/log.h"
 
 namespace ns3 {
@@ -339,6 +340,17 @@ ATPTxBuffer::CheckAndMoveTimeoutPackets(uint32_t timeoutUs)
             retxItem->m_packet = item->m_packet->Copy();
             retxItem->m_packetId = item->m_packetId;
             retxItem->m_lastSentTime = item->m_lastSentTime;
+            
+            // 给超时重传的包打上 resend = 1 的标记
+            ATPTag tag;
+            if (retxItem->m_packet->PeekPacketTag(tag)) {
+                tag.SetResend(1);
+                retxItem->m_packet->ReplacePacketTag(tag);
+            }
+            else{
+                NS_LOG_WARN("PeekPacketTag failed for timeout packet " << item->m_packetId);
+            }
+            
             m_retxQueue.push(retxItem);
             
             delete item;
