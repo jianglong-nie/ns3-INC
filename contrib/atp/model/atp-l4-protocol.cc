@@ -251,6 +251,36 @@ ATPL4Protocol::AggregatePacket(Ptr<Packet> packet)
     // 获取对应的聚合器
     Aggregator& aggregator = m_aggregators[index];
 
+    // 处理重传包
+    if (atpTag.m_resend == 1) {
+        if (aggregator.m_jobId == atpTag.GetJobId() 
+        && aggregator.m_seqNum == atpTag.GetSeqNum()) {
+            if (atpTag.m_edgeSwitchIdentifier == 0) {
+                uint32_t temp_bitmap = atpTag.m_bitmap0;
+                // 判断当前包是否被聚合过了
+                if ((temp_bitmap & aggregator.m_bitmap) == temp_bitmap) {
+                    aggregator.Reset();
+                    return packet;
+                }
+                else {
+                    aggregator.m_bitmap = aggregator.m_bitmap | temp_bitmap;
+                    atpTag.m_edgeSwitchIdentifier += 1;
+                    atpTag.m_bitmap0 = aggregator.m_bitmap;
+                    packet->ReplacePacketTag(atpTag);
+                    aggregator.Reset();
+                    return packet;
+                }
+            }
+            else {
+                aggregator.Reset();
+                return packet;
+            }
+        }
+        else {
+            return packet;
+        }
+    }
+
     // 如果聚合器为空，或者jobId和seqNum都匹配
     if (aggregator.IsEmpty() || 
         (aggregator.m_jobId == atpTag.GetJobId() && 

@@ -1,4 +1,5 @@
 #include "atp-tx-buffer.h"
+#include "atp-tag.h"
 #include "ns3/log.h"
 
 namespace ns3 {
@@ -334,13 +335,19 @@ ATPTxBuffer::CheckAndMoveTimeoutPackets(uint32_t timeoutUs)
             // 超时了，移到重传队列
             NS_LOG_INFO("Packet " << item->m_packetId << " timeout, elapsed: " 
                         << elapsedTime << "us, threshold: " << timeoutUs << "us");
-            
+
             ATPTxItem* retxItem = new ATPTxItem();
             retxItem->m_packet = item->m_packet->Copy();
+            // 设置 ATPTag 的 resend = 1
+            ATPTag atpTag;
+            if (retxItem->m_packet->PeekPacketTag(atpTag)) {
+                atpTag.m_resend = 1;
+                retxItem->m_packet->ReplacePacketTag(atpTag);
+            }
             retxItem->m_packetId = item->m_packetId;
             retxItem->m_lastSentTime = item->m_lastSentTime;
             m_retxQueue.push(retxItem);
-            
+
             delete item;
             timeoutCount++;
         } else {
