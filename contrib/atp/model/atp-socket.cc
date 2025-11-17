@@ -936,7 +936,20 @@ ATPSocket::AggregatePacket(Ptr<Packet> packet,
     else
     {
         NS_LOG_WARN("ATPSocket: Hash collision at index " << index << ", drop the packet");
-        m_dropTrace(packet);
+        // 哈希冲突：这个槽位被不同的 (jobId, seqNum) 占用了
+        NS_LOG_WARN("ATPSocket: Hash collision at index " << index 
+                    << " expected (jobId=" << (uint32_t)aggregator.m_jobId
+                    << ", seqNum=" << aggregator.m_seqNum << ")"
+                    << " got (jobId=" << (uint32_t)atpTag.GetJobId()
+                    << ", seqNum=" << atpTag.GetSeqNumber() << ")");
+
+        // 强制重置并使用新的包
+        NS_LOG_WARN("Forcing aggregator reset due to collision");
+        aggregator.Reset();
+        aggregator.m_jobId = atpTag.GetJobId();
+        aggregator.m_seqNum = atpTag.GetSeqNumber();
+        aggregator.AddPacket(packet);
+
     }
 }
 
