@@ -50,7 +50,7 @@ main(int argc, char* argv[])
     sendBytesStream_job1.open("atp-result/trace-atp-result/job1-sendBytes-v1-1job.txt", std::ofstream::out | std::ofstream::trunc);
 
     Time startTime = Seconds(1.0);
-    Time stopTime = Seconds(1.0) + MicroSeconds(1000);
+    Time stopTime = Seconds(1.0) + MicroSeconds(10000);
     
 
     NS_LOG_INFO("Build topology");
@@ -72,15 +72,15 @@ main(int argc, char* argv[])
 
     // 为关键链路设置ECN和阈值（节点4-6, 5-6, 6-7的链路）
     Ptr<PointToPointNetDevice> n4_n6_dev = DynamicCast<PointToPointNetDevice>(link4_6.Get(0)); // 节点4侧设备
-    n4_n6_dev->SetThreshold(80);
+    n4_n6_dev->SetThreshold(160);
     n4_n6_dev->SetEnableEcn(true);
 
     Ptr<PointToPointNetDevice> n5_n6_dev = DynamicCast<PointToPointNetDevice>(link5_6.Get(0)); // 节点5侧设备
-    n5_n6_dev->SetThreshold(80);
+    n5_n6_dev->SetThreshold(160);
     n5_n6_dev->SetEnableEcn(true);
 
     Ptr<PointToPointNetDevice> n6_n7_dev = DynamicCast<PointToPointNetDevice>(link6_7.Get(0)); // 节点6侧设备
-    n6_n7_dev->SetThreshold(80);
+    n6_n7_dev->SetThreshold(160);
     n6_n7_dev->SetEnableEcn(true);
 
 
@@ -136,6 +136,11 @@ main(int argc, char* argv[])
     sinkATPSocket->AddAddressMapping(1, interfaces1_4.GetAddress(0), sendPort);  // job1 - n1
     sinkATPSocket->AddAddressMapping(1, interfaces2_5.GetAddress(0), sendPort);  // job1 - n2
     sinkATPSocket->AddAddressMapping(1, interfaces3_5.GetAddress(0), sendPort);  // job1 - n3
+
+    // 设置Job的完整bitmap（用于判断聚合完成）
+    // bitmap0 = 0b11 (2个worker在每个第一层聚合点: n0,n1->n4; n2,n3->n5)
+    // bitmap1 = 0b11 (2个第一层聚合点: n4, n5)
+    sinkATPSocket->SetJobBitmap(1, 0b11, 0b11);
 
     // start sinkApp
     sinkApp->SetStartTime(Seconds(0.0));
