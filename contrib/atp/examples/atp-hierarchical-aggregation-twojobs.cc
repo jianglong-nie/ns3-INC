@@ -95,7 +95,7 @@ main(int argc, char* argv[])
     // 日志配置（可根据需要启用）
     // LogComponentEnable("ATPBulkSendApplication", LOG_LEVEL_ALL);
     // LogComponentEnable("PacketSink", LOG_LEVEL_ALL);
-    // LogComponentEnable("ATPSocket", LOG_LEVEL_ALL);
+    // LogComponentEnable("ATPSocket", LOG_LEVEL_INFO);
      //LogComponentEnable("ATPL4Protocol", LOG_LEVEL_ALL);
     // LogComponentEnable("PointToPointNetDevice", LOG_LEVEL_INFO);
     
@@ -205,10 +205,10 @@ main(int argc, char* argv[])
     s2ps1Device->SetThreshold(160);
     s2ps2Device->SetThreshold(160);
 
-    s0s2Device->SetEnableEcn(false);
-    s1s2Device->SetEnableEcn(false);
-    s2ps1Device->SetEnableEcn(false);
-    s2ps2Device->SetEnableEcn(false);
+    s0s2Device->SetEnableEcn(true);
+    s1s2Device->SetEnableEcn(true);
+    s2ps1Device->SetEnableEcn(true);
+    s2ps2Device->SetEnableEcn(true);
 
     //
     // Install the internet stack on the nodes

@@ -73,8 +73,8 @@ main(int argc, char* argv[])
     cwndStream_job1.open("atp-result/trace-ha-singlejob/job1-cwnd-trace-ha-singlejob.txt", std::ofstream::out | std::ofstream::trunc);
     SinkBytesStream_job1.open("atp-result/trace-ha-singlejob/job1-sinkBytes-trace-ha-singlejob.txt", std::ofstream::out | std::ofstream::trunc);
 
-    uint32_t maxBytes = 100;
-    Time stopTime = Seconds(1.0) + MicroSeconds(20000); // 约8us为一个rtt时间
+    uint32_t maxBytes = 0;
+    Time stopTime = Seconds(1.0) + MicroSeconds(10000); // 约8us为一个rtt时间
 
     // 设置job1和job2初始拥塞窗口
     uint64_t initialTimestamp = 1000000;
@@ -106,7 +106,7 @@ main(int argc, char* argv[])
     //
     PointToPointHelper pointToPoint;
     pointToPoint.SetDeviceAttribute("DataRate", StringValue("100Gbps"));
-    pointToPoint.SetChannelAttribute("Delay", StringValue("2us"));
+    pointToPoint.SetChannelAttribute("Delay", StringValue("1us"));
 
     NetDeviceContainer dev_w0s0, dev_w1s0, dev_w2s1, dev_w3s1, dev_s0s2, dev_s1s2, dev_s2ps;
     dev_w0s0 = pointToPoint.Install(w0s0);
@@ -134,9 +134,9 @@ main(int argc, char* argv[])
     n2Device->SetQueue(customQueue);
     */
 
-    s0Device->SetThreshold(80);
-    s1Device->SetThreshold(80);
-    s2Device->SetThreshold(80);
+    s0Device->SetThreshold(160);
+    s1Device->SetThreshold(160);
+    s2Device->SetThreshold(160);
 
     s0Device->SetEnableEcn(false);
     s1Device->SetEnableEcn(false);

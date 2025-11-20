@@ -177,3 +177,12 @@ build_lib_example(
                       ${libapplications}
                       ${libpoint-to-point}
 )
+
+build_lib_example(
+    NAME atp-hierarchical-newtopo
+    SOURCE_FILES atp-hierarchical-newtopo.cc
+    LIBRARIES_TO_LINK ${libatp}
+                      ${libinternet}
+                      ${libapplications}
+                      ${libpoint-to-point}
+)
