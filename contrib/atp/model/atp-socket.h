@@ -34,6 +34,90 @@ class ATPL4Protocol;
 class Ipv4EndPoint;
 
 /**
+ * \brief 描述单个聚合分支的结构
+ * 
+ * 每个分支对应 bitmap1 中的一位，代表一个边缘交换机（第一层聚合点）
+ */
+struct AggregationBranch
+{
+    uint32_t branchId;          //!< 分支ID（对应bitmap1中的位位置）
+    uint8_t fanInDegree0;       //!< 该分支下第一层的扇入度（有多少个worker）
+    uint32_t fullBitmap0;       //!< 该分支完全聚合时的bitmap0值（例如：3个worker则为0b111）
+    
+    AggregationBranch(uint32_t id = 0, uint8_t fanIn = 0, uint32_t bitmap = 0)
+        : branchId(id), fanInDegree0(fanIn), fullBitmap0(bitmap) {}
+};
+
+/**
+ * \brief 描述作业的完整聚合树结构
+ * 
+ * 用于参数服务器端理解任务的层次化拓扑，以便正确计算聚合状态
+ */
+struct JobTree
+{
+    uint8_t jobId;                              //!< 作业ID
+    uint8_t fanInDegree1;                       //!< 第二层（核心层）的扇入度
+    std::map<uint32_t, AggregationBranch> branches;  //!< 分支映射表：bitmap1位位置 -> 分支信息
+    uint32_t expectedFlatBitmap;                //!< 期望的完整flat_bitmap（所有worker到达）
+    
+    JobTree(uint8_t jid = 0) : jobId(jid), fanInDegree1(0), expectedFlatBitmap(0) {}
+    
+    /**
+     * \brief 添加一个聚合分支
+     * \param bitmap1Pos bitmap1中的位位置（0-31）
+     * \param fanIn0 该分支的第一层扇入度
+     * \param fullBitmap0 该分支完全聚合时的bitmap0
+     */
+    void AddBranch(uint32_t bitmap1Pos, uint8_t fanIn0, uint32_t fullBitmap0)
+    {
+        branches[bitmap1Pos] = AggregationBranch(bitmap1Pos, fanIn0, fullBitmap0);
+    }
+    
+    /**
+     * \brief 根据JobTree结构计算flat_bitmap
+     * \param bitmap0 当前的bitmap0
+     * \param bitmap1 当前的bitmap1
+     * \return 对应的flat_bitmap
+     */
+    uint32_t ConvertToFlatBitmap(uint32_t bitmap0, uint32_t bitmap1) const
+    {
+        uint32_t flat_bitmap = 0;
+        uint32_t worker_offset = 0;  // worker在flat_bitmap中的起始位置
+        
+        // 按照bitmap1的位顺序处理每个分支
+        for (uint32_t b1_pos = 0; b1_pos < 32; b1_pos++) {
+            auto it = branches.find(b1_pos);
+            if (it != branches.end()) {
+                const AggregationBranch& branch = it->second;
+                
+                // 如果这个分支在bitmap1中被标记
+                if (bitmap1 & (1u << b1_pos)) {
+                    // 将该分支的bitmap0映射到flat_bitmap
+                    for (uint32_t w = 0; w < branch.fanInDegree0; w++) {
+                        flat_bitmap |= (1u << (worker_offset + w));
+                    }
+              }
+              
+              // 移动到下一个分支的worker位置
+              worker_offset += branch.fanInDegree0;
+          }
+      }
+      
+      return flat_bitmap;
+  }
+  
+  /**
+   * \brief 检查聚合是否完成
+   * \param flat_bitmap 当前的flat_bitmap
+   * \return 是否所有worker都已到达
+   */
+  bool IsAggregationComplete(uint32_t flat_bitmap) const
+  {
+      return flat_bitmap == expectedFlatBitmap;
+  }
+};
+
+/**
  * \brief ATP Socket实现
  * 
  * ATP是一个无序传输但具有拥塞控制和重传机制的协议
@@ -115,8 +199,19 @@ class ATPSocket : public Socket
     void SetRetxCheckInterval(Time interval);
 
     void SetJobBitmap(uint8_t jobId, uint32_t bitmap0, uint32_t bitmap1);
+    
+    uint32_t GetFlatBitmap(uint8_t jobId, uint32_t bitmap0, uint32_t bitmap1);
+
+    // 添加bitmap映射表：手动配置(bitmap0, bitmap1) -> flat_bitmap的映射
+    void AddFlatBitmapMapping(uint8_t jobId, uint32_t bitmap0, uint32_t bitmap1, uint32_t flat_bitmap);
+    
+    // 直接设置期望的完整 flat_bitmap（用于判断聚合完成）
+    void SetExpectedAggFlatBitmap(uint8_t jobId, uint32_t expected_flat_bitmap);
 
     uint64_t GetTotalTxBytes() const { return m_totalTxBytes; }
+
+    void SetJobTree(const JobTree& jobTree);
+    JobTree& GetJobTree(uint8_t jobId);
 
   protected:
     void SendWindowData();
@@ -146,9 +241,6 @@ class ATPSocket : public Socket
     
     // 检查超时的数据包
     void CheckRetransmitTimeout();
-
-    //转换两层bitmap为单层
-    uint32_t ConvertToFlatBitmap(uint32_t bitmap0, uint32_t bitmap1, uint8_t fanInDegree0);
 
     // 连接到ATP/IP的其它层
     Ipv4EndPoint* m_endPoint;          // 本地端点
@@ -209,6 +301,15 @@ class ATPSocket : public Socket
 
     // 存储已知节点的IP地址和端口映射
     std::map<uint8_t, std::vector<std::pair<Ipv4Address, uint16_t>>> m_jobAddressMap;
+
+    // 存储每个job的聚合树结构
+    std::map<uint8_t, JobTree> m_jobTreeMap;
+    
+    // 存储不同jobId的bitmap映射表: key=(bitmap0, bitmap1), value=flat_bitmap
+    std::map<uint8_t, std::map<std::pair<uint32_t, uint32_t>, uint32_t>> m_jobBitmapMappingTable;
+    
+    // 存储每个job期望的完整 bitmap1（用于判断聚合是否完成）
+    std::map<uint8_t, uint32_t> m_jobExpectedFlatBitmapMap;
 };
 
 } // namespace ns3

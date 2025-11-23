@@ -847,33 +847,6 @@ ATPSocket::SendMultiAck(const ATPTag& atpTag, const Ipv4Header& ipHeader)
     }
 }
 
-uint32_t
-ATPSocket::ConvertToFlatBitmap(uint32_t bitmap0, uint32_t bitmap1, uint8_t fanInDegree0)
-{
-    uint32_t flat_bitmap = 0;
-    
-    // 遍历 bitmap1 中所有设置的位（第二层聚合点）
-    for (uint32_t b1_pos = 0; b1_pos < 32; b1_pos++) {
-        if (bitmap1 & (1u << b1_pos)) {
-            // 遍历 bitmap0 中所有设置的位（第一层聚合点）
-            for (uint32_t b0_pos = 0; b0_pos < 32; b0_pos++) {
-                if (bitmap0 & (1u << b0_pos)) {
-                    // 计算在 flat_bitmap 中的位置
-                    uint32_t flat_pos = b1_pos * fanInDegree0 + b0_pos;
-                    flat_bitmap |= (1u << flat_pos);
-                }
-            }
-        }
-    }
-    
-    NS_LOG_INFO("ConvertToFlatBitmap: bitmap0=0x" << std::hex << bitmap0 
-                << " bitmap1=0x" << bitmap1 
-                << " fanInDegree0=" << std::dec << (uint32_t)fanInDegree0
-                << " -> flat_bitmap=0x" << std::hex << flat_bitmap);
-    
-    return flat_bitmap;
-}
-
 void
 ATPSocket::AggregatePacket(Ptr<Packet> packet, 
                            Ipv4Header header,
@@ -889,10 +862,10 @@ ATPSocket::AggregatePacket(Ptr<Packet> packet,
     packet->PeekPacketTag(atpTag);
 
     // 转换为 flat_bitmap
-    uint32_t incoming_flat_bitmap = ConvertToFlatBitmap(
+    uint32_t incoming_flat_bitmap = GetFlatBitmap(
+        atpTag.GetJobId(),
         atpTag.GetBitMap0(),
-        atpTag.GetBitMap1(),
-        atpTag.GetFaninDegree0()
+        atpTag.GetBitMap1()
     );
 
     // 使用哈希函数计算索引
@@ -922,17 +895,13 @@ ATPSocket::AggregatePacket(Ptr<Packet> packet,
         // 处理数据包，更新 flat_bitmap
         aggregator.ProcessPacket(packet, incoming_flat_bitmap);
 
-        // 获取期望的 flat_bitmap（所有 worker 都到达）
-        uint32_t expected_flat_bitmap = 0;
-        auto it = m_jobBitmapMap.find(atpTag.GetJobId());
-        if (it != m_jobBitmapMap.end()) {
-            // 从存储的完整 bitmap0 和 bitmap1 转换
-            expected_flat_bitmap = ConvertToFlatBitmap(
-                it->second.first,   // bitmap0
-                it->second.second,  // bitmap1
-                atpTag.GetFaninDegree0()
-            );
+        // 从 JobTree 获取期望的 flat_bitmap
+        auto tree_it = m_jobTreeMap.find(atpTag.GetJobId());
+        if (tree_it == m_jobTreeMap.end()) {
+            NS_LOG_ERROR("No JobTree found for jobId " << (uint32_t)atpTag.GetJobId());
+            return;
         }
+        uint32_t expected_flat_bitmap = tree_it->second.expectedFlatBitmap;
 
         // 检查聚合是否完成
         bool aggregationComplete = aggregator.IsComplete(expected_flat_bitmap);
@@ -1039,22 +1008,20 @@ ATPSocket::ForwardUp(Ptr<Packet> packet,
     Address address = InetSocketAddress(header.GetSource(), port);
     
     // 转换为 flat_bitmap 检查是否完全聚合
-    uint32_t incoming_flat_bitmap = ConvertToFlatBitmap(
+    uint32_t incoming_flat_bitmap = GetFlatBitmap(
+        atpTag.GetJobId(),
         atpTag.GetBitMap0(),
-        atpTag.GetBitMap1(),
-        atpTag.GetFaninDegree0()
+        atpTag.GetBitMap1()
     );
     
     // 获取期望的完整 flat_bitmap
-    uint32_t expected_flat_bitmap = 0;
-    auto it = m_jobBitmapMap.find(atpTag.GetJobId());
-    if (it != m_jobBitmapMap.end()) {
-        expected_flat_bitmap = ConvertToFlatBitmap(
-            it->second.first,
-            it->second.second,
-            atpTag.GetFaninDegree0()
-        );
+    auto tree_it = m_jobTreeMap.find(atpTag.GetJobId());
+    if (tree_it == m_jobTreeMap.end()) {
+        NS_LOG_ERROR("No JobTree found for jobId " << (uint32_t)atpTag.GetJobId());
+        m_dropTrace(packet);
+        return;
     }
+    uint32_t expected_flat_bitmap = tree_it->second.expectedFlatBitmap;
     
     // 检查是否是完全聚合的包
     if (incoming_flat_bitmap == expected_flat_bitmap)
@@ -1136,6 +1103,60 @@ ATPSocket::SetJobBitmap(uint8_t jobId, uint32_t bitmap0, uint32_t bitmap1)
     NS_LOG_INFO("Set job " << static_cast<uint32_t>(jobId) 
                 << " bitmap0=0x" << std::hex << bitmap0 
                 << " bitmap1=0x" << bitmap1);
+}
+
+void
+ATPSocket::SetJobTree(const JobTree& jobTree)
+{
+    NS_LOG_FUNCTION(this << static_cast<uint32_t>(jobTree.jobId));
+    m_jobTreeMap[jobTree.jobId] = jobTree;
+    
+    NS_LOG_INFO("Set JobTree for job " << static_cast<uint32_t>(jobTree.jobId)
+                << " fanInDegree1=" << (uint32_t)jobTree.fanInDegree1
+                << " branches=" << jobTree.branches.size()
+                << " expectedFlatBitmap=0x" << std::hex << jobTree.expectedFlatBitmap);
+}
+
+JobTree&
+ATPSocket::GetJobTree(uint8_t jobId)
+{
+    return m_jobTreeMap[jobId];
+}
+
+void
+ATPSocket::AddFlatBitmapMapping(uint8_t jobId, uint32_t bitmap0, uint32_t bitmap1, uint32_t flat_bitmap)
+{
+    NS_LOG_FUNCTION(this << static_cast<uint32_t>(jobId) << bitmap0 << bitmap1 << flat_bitmap);
+    
+    auto key = std::make_pair(bitmap0, bitmap1);
+    m_jobBitmapMappingTable[jobId][key] = flat_bitmap;
+}
+
+uint32_t
+ATPSocket::GetFlatBitmap(uint8_t jobId, uint32_t bitmap0, uint32_t bitmap1)
+{
+    NS_LOG_FUNCTION(this << static_cast<uint32_t>(jobId) << bitmap0 << bitmap1);
+    
+    // 使用JobTree结构计算flat_bitmap
+    auto it = m_jobTreeMap.find(jobId);
+    if (it != m_jobTreeMap.end()) {
+        uint32_t flat_bitmap = it->second.ConvertToFlatBitmap(bitmap0, bitmap1);
+        NS_LOG_INFO("GetWorkerFlatBitmap: jobId=" << (uint32_t)jobId 
+                    << " bitmap0=0x" << std::hex << bitmap0 
+                    << " bitmap1=0x" << bitmap1 
+                    << " -> flat_bitmap=0x" << flat_bitmap);
+        return flat_bitmap;
+    }
+    
+    NS_LOG_ERROR("No JobTree found for jobId " << (uint32_t)jobId);
+    return 0;
+}
+
+void
+ATPSocket::SetExpectedAggFlatBitmap(uint8_t jobId, uint32_t expected_flat_bitmap)
+{
+    NS_LOG_FUNCTION(this << static_cast<uint32_t>(jobId) << expected_flat_bitmap);
+    m_jobExpectedFlatBitmapMap[jobId] = expected_flat_bitmap;
 }
 
 }
