@@ -35,46 +35,23 @@ std::ofstream cwndStream_job2;
 uint64_t lastTimeJob1Bytes = 0;
 uint64_t lastTimeJob2Bytes = 0;
 
-std::ofstream sendBytesStream_job1;
-std::ofstream sendBytesStream_job2;
+// 每个worker独立的发送字节数记录
+std::ofstream sendBytesStream_workers[10];  // w0-w9
+uint64_t lastTimeWorkerBytes[10] = {0};     // 初始化为0
 
-// 记录发送端发送的总字节数
-static void
-MeasurementTxJob1(Ptr<ATPSocket> socket)
+// 通用的发送字节数测量函数
+static void MeasurementTxWorker(Ptr<ATPSocket> socket, std::ofstream& stream, uint64_t& lastBytes)
 {
     Time now = Simulator::Now();
-
-    uint64_t currentTimeJob1Bytes = socket->GetTotalTxBytes();  // job1
-        
-    // 100us内发送的字节数
-    uint64_t SendJob1BytesPer100ms = currentTimeJob1Bytes - lastTimeJob1Bytes;
-
-    // 记录总字节数和本100us内发送的字节数
-    sendBytesStream_job1 << now.GetMicroSeconds() << "\t" << currentTimeJob1Bytes << "\t" << SendJob1BytesPer100ms << std::endl;
+    uint64_t currentBytes = socket->GetTotalTxBytes();
+    uint64_t bytesPerInterval = currentBytes - lastBytes;
     
-    lastTimeJob1Bytes = currentTimeJob1Bytes;
-                            
-    // 调度下一个测量
-    Simulator::Schedule(MicroSeconds(100), &MeasurementTxJob1, socket);
-}
-
-static void
-MeasurementTxJob2(Ptr<ATPSocket> socket)
-{
-    Time now = Simulator::Now();
-
-    uint64_t currentTimeJob2Bytes = socket->GetTotalTxBytes();  // job2
-
-    // 100us内接收到的字节数
-    uint64_t SendJob2BytesPer100ms = currentTimeJob2Bytes - lastTimeJob2Bytes;
-
-    // 记录总字节数和本100us内发送的字节数
-    sendBytesStream_job2 << now.GetMicroSeconds() << "\t" << currentTimeJob2Bytes << "\t" << SendJob2BytesPer100ms << std::endl;
+    stream << now.GetMicroSeconds() << "\t" << currentBytes << "\t" << bytesPerInterval << std::endl;
     
-    lastTimeJob2Bytes = currentTimeJob2Bytes;
-                            
+    lastBytes = currentBytes;
+    
     // 调度下一个测量
-    Simulator::Schedule(MicroSeconds(100), &MeasurementTxJob2, socket);
+    Simulator::Schedule(MicroSeconds(100), &MeasurementTxWorker, socket, std::ref(stream), std::ref(lastBytes));
 }
 
 static void
@@ -105,11 +82,19 @@ main(int argc, char* argv[])
 
     cwndStream_job1.open("atp-result/trace-ha-newtopo/job1-cwnd-trace-ha-twojobs.txt", std::ofstream::out | std::ofstream::trunc);
     cwndStream_job2.open("atp-result/trace-ha-newtopo/job2-cwnd-trace-ha-twojobs.txt", std::ofstream::out | std::ofstream::trunc);
-    sendBytesStream_job1.open("atp-result/trace-ha-newtopo/job1-sendBytes-trace-ha-twojobs.txt", std::ofstream::out | std::ofstream::trunc);
-    sendBytesStream_job2.open("atp-result/trace-ha-newtopo/job2-sendBytes-trace-ha-twojobs.txt", std::ofstream::out | std::ofstream::trunc);
-
+    
+    sendBytesStream_workers[0].open("atp-result/trace-ha-newtopo/job1-sendBytes-w0.txt", std::ofstream::out | std::ofstream::trunc);
+    sendBytesStream_workers[1].open("atp-result/trace-ha-newtopo/job1-sendBytes-w1.txt", std::ofstream::out | std::ofstream::trunc);
+    sendBytesStream_workers[2].open("atp-result/trace-ha-newtopo/job1-sendBytes-w2.txt", std::ofstream::out | std::ofstream::trunc);
+    sendBytesStream_workers[3].open("atp-result/trace-ha-newtopo/job1-sendBytes-w3.txt", std::ofstream::out | std::ofstream::trunc);
+    sendBytesStream_workers[4].open("atp-result/trace-ha-newtopo/job1-sendBytes-w4.txt", std::ofstream::out | std::ofstream::trunc);
+    sendBytesStream_workers[5].open("atp-result/trace-ha-newtopo/job2-sendBytes-w5.txt", std::ofstream::out | std::ofstream::trunc);
+    sendBytesStream_workers[6].open("atp-result/trace-ha-newtopo/job2-sendBytes-w6.txt", std::ofstream::out | std::ofstream::trunc);
+    sendBytesStream_workers[7].open("atp-result/trace-ha-newtopo/job2-sendBytes-w7.txt", std::ofstream::out | std::ofstream::trunc);
+    sendBytesStream_workers[8].open("atp-result/trace-ha-newtopo/job2-sendBytes-w8.txt", std::ofstream::out | std::ofstream::trunc);
+    sendBytesStream_workers[9].open("atp-result/trace-ha-newtopo/job2-sendBytes-w9.txt", std::ofstream::out | std::ofstream::trunc);
     uint32_t maxBytes = 0;
-    Time stopTime = Seconds(1.0) + MicroSeconds(10000); // 约8us为一个rtt时间
+    Time stopTime = Seconds(1.0) + MicroSeconds(10001); // 约8us为一个rtt时间
 
     // 设置job1和job2初始拥塞窗口
     uint64_t initialTimestamp = 1000000;
@@ -119,8 +104,8 @@ main(int argc, char* argv[])
     // 设置超时重传参数
     // 当数据包发送后超过retxTimeout时间未收到ACK，将触发重传
     // retxCheckInterval是定期检查超时的间隔时间
-    Time retxTimeout = MicroSeconds(1000);         // 重传超时时间：12us（可调整）
-    Time retxCheckInterval = MicroSeconds(500);   // 超时检查间隔：6us（可调整）
+    Time retxTimeout = MicroSeconds(16);         // 重传超时时间：16us（可调整）
+    Time retxCheckInterval = MicroSeconds(2);   // 超时检查间隔：2us（可调整）
 
     // 在文件打开后，写入初始拥塞窗口值
     cwndStream_job1 << initialTimestamp << "\t" << job1_initCwnd << std::endl;
@@ -761,10 +746,18 @@ main(int argc, char* argv[])
     sinkATPSocket2->AddAddressMapping(job2Id, ip_w8s2.GetAddress(0), sendPort2);  // job2 - w8
     sinkATPSocket2->AddAddressMapping(job2Id, ip_w9s2.GetAddress(0), sendPort2);  // job2 - w9
 
-    // 开始测量
-    Simulator::Schedule(Seconds(1.0), &MeasurementTxJob1, w0job1_ATPSocket);
-    Simulator::Schedule(Seconds(1.0), &MeasurementTxJob2, w9job2_ATPSocket);
-
+    // 开始测量 - 为每个worker调度测量
+    Simulator::Schedule(Seconds(1.0), &MeasurementTxWorker, w0job1_ATPSocket, std::ref(sendBytesStream_workers[0]), std::ref(lastTimeWorkerBytes[0]));
+    Simulator::Schedule(Seconds(1.0), &MeasurementTxWorker, w1job1_ATPSocket, std::ref(sendBytesStream_workers[1]), std::ref(lastTimeWorkerBytes[1]));
+    Simulator::Schedule(Seconds(1.0), &MeasurementTxWorker, w2job1_ATPSocket, std::ref(sendBytesStream_workers[2]), std::ref(lastTimeWorkerBytes[2]));
+    Simulator::Schedule(Seconds(1.0), &MeasurementTxWorker, w3job1_ATPSocket, std::ref(sendBytesStream_workers[3]), std::ref(lastTimeWorkerBytes[3]));
+    Simulator::Schedule(Seconds(1.0), &MeasurementTxWorker, w4job1_ATPSocket, std::ref(sendBytesStream_workers[4]), std::ref(lastTimeWorkerBytes[4]));
+    Simulator::Schedule(Seconds(1.0), &MeasurementTxWorker, w5job2_ATPSocket, std::ref(sendBytesStream_workers[5]), std::ref(lastTimeWorkerBytes[5]));
+    Simulator::Schedule(Seconds(1.0), &MeasurementTxWorker, w6job2_ATPSocket, std::ref(sendBytesStream_workers[6]), std::ref(lastTimeWorkerBytes[6]));
+    Simulator::Schedule(Seconds(1.0), &MeasurementTxWorker, w7job2_ATPSocket, std::ref(sendBytesStream_workers[7]), std::ref(lastTimeWorkerBytes[7]));
+    Simulator::Schedule(Seconds(1.0), &MeasurementTxWorker, w8job2_ATPSocket, std::ref(sendBytesStream_workers[8]), std::ref(lastTimeWorkerBytes[8]));
+    Simulator::Schedule(Seconds(1.0), &MeasurementTxWorker, w9job2_ATPSocket, std::ref(sendBytesStream_workers[9]), std::ref(lastTimeWorkerBytes[9]));
+        
     //
     // Now, do the actual simulation.
     //
@@ -776,14 +769,24 @@ main(int argc, char* argv[])
 
     cwndStream_job1.close();
     cwndStream_job2.close();
-    sendBytesStream_job1.close();
-    sendBytesStream_job2.close();
+    for (int i = 0; i < 10; i++) {
+        sendBytesStream_workers[i].close();
+    }
 
-    std::cout << "job1 Total Bytes Sent: " << w0job1_ATPSocket->GetTotalTxBytes() << std::endl;
-    std::cout << "job2 Total Bytes Sent: " << w5job2_ATPSocket->GetTotalTxBytes() << std::endl;
 
-    std::cout << " job1 total recv bytes" << sinkApp1->GetTotalRxJob(job1Id) << std::endl;
-    std::cout << " job2 total recv bytes" << sinkApp2->GetTotalRxJob(job2Id) << std::endl;
+    std::cout << "-------------job1-------------------" << std::endl;
+    for (int i = 0; i < 5; i++) {
+        std::cout << "worker " << i << " total bytes sent: " << lastTimeWorkerBytes[i] << std::endl;
+    }
+    
+    std::cout << "-------------job2-------------------" << std::endl;
+    for (int i = 5; i < 10; i++) {
+        std::cout << "worker " << i << " total bytes sent: " << lastTimeWorkerBytes[i] << std::endl;
+    }
+
+    std::cout << "--------------------------------" << std::endl;
+    std::cout << " job1-PS total recv bytes: " << sinkApp1->GetTotalRxJob(job1Id) << std::endl;
+    std::cout << " job2-PS total recv bytes: " << sinkApp2->GetTotalRxJob(job2Id) << std::endl;
 
     return 0;
 }
