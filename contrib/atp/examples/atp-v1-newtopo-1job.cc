@@ -29,15 +29,11 @@ NS_LOG_COMPONENT_DEFINE("ATP-P2P-2w2w");
 
 // 拥塞窗口跟踪，写入txt文件
 std::ofstream cwndStream_job1;
-std::ofstream cwndStream_job2;
 
 // PacketSink端接收到的job1和job2的字节数
 uint64_t lastTimeJob1Bytes = 0;
-uint64_t lastTimeJob2Bytes = 0;
 
 std::ofstream sendBytesStream_job1;
-std::ofstream sendBytesStream_job2;
-
 // 记录发送端发送的总字节数
 static void
 MeasurementTxJob1(Ptr<ATPSocket> socket)
@@ -59,34 +55,9 @@ MeasurementTxJob1(Ptr<ATPSocket> socket)
 }
 
 static void
-MeasurementTxJob2(Ptr<ATPSocket> socket)
-{
-    Time now = Simulator::Now();
-
-    uint64_t currentTimeJob2Bytes = socket->GetTotalTxBytes();  // job2
-
-    // 100us内接收到的字节数
-    uint64_t SendJob2BytesPer100ms = currentTimeJob2Bytes - lastTimeJob2Bytes;
-
-    // 记录总字节数和本100us内发送的字节数
-    sendBytesStream_job2 << now.GetMicroSeconds() << "\t" << currentTimeJob2Bytes << "\t" << SendJob2BytesPer100ms << std::endl;
-    
-    lastTimeJob2Bytes = currentTimeJob2Bytes;
-                            
-    // 调度下一个测量
-    Simulator::Schedule(MicroSeconds(100), &MeasurementTxJob2, socket);
-}
-
-static void
 CwndChange_job1(uint32_t oldCwnd, uint32_t newCwnd)
 {
     cwndStream_job1 << Simulator::Now().GetMicroSeconds() << "\t" << newCwnd << std::endl;
-}
-
-static void
-CwndChange_job2(uint32_t oldCwnd, uint32_t newCwnd)
-{
-    cwndStream_job2 << Simulator::Now().GetMicroSeconds() << "\t" << newCwnd << std::endl;
 }
 
 int
@@ -103,18 +74,15 @@ main(int argc, char* argv[])
     // 默认超时时间：500微秒，检查间隔：100微秒
     // 可通过下方参数调整
 
-    cwndStream_job1.open("atp-result/trace-atp-newtopo/job1-cwnd-trace-atp-twojobs.txt", std::ofstream::out | std::ofstream::trunc);
-    cwndStream_job2.open("atp-result/trace-atp-newtopo/job2-cwnd-trace-atp-twojobs.txt", std::ofstream::out | std::ofstream::trunc);
-    sendBytesStream_job1.open("atp-result/trace-atp-newtopo/job1-sendBytes-trace-atp-twojobs.txt", std::ofstream::out | std::ofstream::trunc);
-    sendBytesStream_job2.open("atp-result/trace-atp-newtopo/job2-sendBytes-trace-atp-twojobs.txt", std::ofstream::out | std::ofstream::trunc);
+    cwndStream_job1.open("atp-result/trace-atp-newtopo-1job/job1-cwnd-trace-atp-twojobs.txt", std::ofstream::out | std::ofstream::trunc);
+    sendBytesStream_job1.open("atp-result/trace-atp-newtopo-1job/job1-sendBytes-trace-atp-twojobs.txt", std::ofstream::out | std::ofstream::trunc);
 
-    uint32_t maxBytes = 248 * 10;
+    uint32_t maxBytes = 0;
     Time stopTime = Seconds(1.0) + MicroSeconds(10001); // 约8us为一个rtt时间
 
     // 设置job1和job2初始拥塞窗口
     uint64_t initialTimestamp = 1000000;
     uint32_t job1_initCwnd = 1;
-    uint32_t job2_initCwnd = 1;
     
     // 设置超时重传参数
     // 当数据包发送后超过retxTimeout时间未收到ACK，将触发重传
@@ -124,9 +92,6 @@ main(int argc, char* argv[])
 
     // 在文件打开后，写入初始拥塞窗口值
     cwndStream_job1 << initialTimestamp << "\t" << job1_initCwnd << std::endl;
-    cwndStream_job2 << initialTimestamp << "\t" << job2_initCwnd << std::endl;
-
-
     //
     // Explicitly create the nodes required by the topology (shown above).
     //
@@ -135,7 +100,6 @@ main(int argc, char* argv[])
     nodes.Create(16); 
     // 节点: w0,w1,w2,w3,w4,w5,w6,w7,w8,w9, s0,s1,s2,s3,ps1,ps2
     // job1: w0, w1, w2, w3, w4
-    // job2: w5, w6, w7, w8, w9
 
     NodeContainer w0s0 = NodeContainer(nodes.Get(0), nodes.Get(10));
     NodeContainer w1s0 = NodeContainer(nodes.Get(1), nodes.Get(10));
@@ -298,11 +262,6 @@ main(int argc, char* argv[])
     Address sinkAddress1(InetSocketAddress(ip_s3ps1.GetAddress(1), sinkPort1));
     sinkApp1->SetAddressPort(sinkAddress1, sinkPort1);
 
-    // job2 sink (ps2)
-    uint16_t sinkPort2 = 9;
-    Address sinkAddress2(InetSocketAddress(ip_s3ps2.GetAddress(1), sinkPort2));
-    sinkApp2->SetAddressPort(sinkAddress2, sinkPort2);
-
     // create ATPSocket for sink1 and bind to sinkAddress1
     Ptr<Socket> sinkSocket1 = Socket::CreateSocket(nodes.Get(14), ATPSocketFactory::GetTypeId());
     Ptr<ATPSocket> sinkATPSocket1 = DynamicCast<ATPSocket>(sinkSocket1);
@@ -310,21 +269,10 @@ main(int argc, char* argv[])
     sinkATPSocket1->Bind(sinkAddress1);
     sinkATPSocket1->Listen();
 
-    // create ATPSocket for sink2 and bind to sinkAddress2
-    Ptr<Socket> sinkSocket2 = Socket::CreateSocket(nodes.Get(15), ATPSocketFactory::GetTypeId());
-    Ptr<ATPSocket> sinkATPSocket2 = DynamicCast<ATPSocket>(sinkSocket2);
-    sinkApp2->SetSocket(sinkATPSocket2);
-    sinkATPSocket2->Bind(sinkAddress2);
-    sinkATPSocket2->Listen();
-
     // start sink applications
     sinkApp1->SetStartTime(Seconds(0.0));
     sinkApp1->SetStopTime(stopTime);
     nodes.Get(14)->AddApplication(sinkApp1);  // ps1
-
-    sinkApp2->SetStartTime(Seconds(0.0));
-    sinkApp2->SetStopTime(stopTime);
-    nodes.Get(15)->AddApplication(sinkApp2);  // ps2
 
     //
     // Create sockets for job1 (w0, w1, w2, w3, w4)
@@ -340,20 +288,6 @@ main(int argc, char* argv[])
     Ptr<ATPSocket> w2job1_ATPSocket = DynamicCast<ATPSocket>(w2job1socket);
     Ptr<ATPSocket> w3job1_ATPSocket = DynamicCast<ATPSocket>(w3job1socket);
     Ptr<ATPSocket> w4job1_ATPSocket = DynamicCast<ATPSocket>(w4job1socket);
-    //
-    // Create sockets for job2 (w5, w6, w7, w8, w9)
-    //
-    Ptr<Socket> w5job2socket = Socket::CreateSocket(nodes.Get(5), ATPSocketFactory::GetTypeId());
-    Ptr<Socket> w6job2socket = Socket::CreateSocket(nodes.Get(6), ATPSocketFactory::GetTypeId());
-    Ptr<Socket> w7job2socket = Socket::CreateSocket(nodes.Get(7), ATPSocketFactory::GetTypeId());
-    Ptr<Socket> w8job2socket = Socket::CreateSocket(nodes.Get(8), ATPSocketFactory::GetTypeId());
-    Ptr<Socket> w9job2socket = Socket::CreateSocket(nodes.Get(9), ATPSocketFactory::GetTypeId());
-
-    Ptr<ATPSocket> w5job2_ATPSocket = DynamicCast<ATPSocket>(w5job2socket);
-    Ptr<ATPSocket> w6job2_ATPSocket = DynamicCast<ATPSocket>(w6job2socket);
-    Ptr<ATPSocket> w7job2_ATPSocket = DynamicCast<ATPSocket>(w7job2socket);
-    Ptr<ATPSocket> w8job2_ATPSocket = DynamicCast<ATPSocket>(w8job2socket);
-    Ptr<ATPSocket> w9job2_ATPSocket = DynamicCast<ATPSocket>(w9job2socket);
 
     // Create applications for job1
     Ptr<ATPBulkSendApplication> w0job1App = CreateObject<ATPBulkSendApplication>();
@@ -362,15 +296,7 @@ main(int argc, char* argv[])
     Ptr<ATPBulkSendApplication> w3job1App = CreateObject<ATPBulkSendApplication>();
     Ptr<ATPBulkSendApplication> w4job1App = CreateObject<ATPBulkSendApplication>();
 
-    // Create applications for job2
-    Ptr<ATPBulkSendApplication> w5job2App = CreateObject<ATPBulkSendApplication>();
-    Ptr<ATPBulkSendApplication> w6job2App = CreateObject<ATPBulkSendApplication>();
-    Ptr<ATPBulkSendApplication> w7job2App = CreateObject<ATPBulkSendApplication>();
-    Ptr<ATPBulkSendApplication> w8job2App = CreateObject<ATPBulkSendApplication>();
-    Ptr<ATPBulkSendApplication> w9job2App = CreateObject<ATPBulkSendApplication>();
-
     uint16_t sendPort1 = 11;  // Port for job1
-    uint16_t sendPort2 = 12;  // Port for job2
 
     // Addresses for job1 workers
     Address w0Address(InetSocketAddress(ip_w0s0.GetAddress(0), sendPort1));
@@ -378,13 +304,6 @@ main(int argc, char* argv[])
     Address w2Address(InetSocketAddress(ip_w2s0.GetAddress(0), sendPort1));
     Address w3Address(InetSocketAddress(ip_w3s1.GetAddress(0), sendPort1));
     Address w4Address(InetSocketAddress(ip_w4s1.GetAddress(0), sendPort1));
-
-    // Addresses for job2 workers
-    Address w5Address(InetSocketAddress(ip_w5s1.GetAddress(0), sendPort2));
-    Address w6Address(InetSocketAddress(ip_w6s1.GetAddress(0), sendPort2));
-    Address w7Address(InetSocketAddress(ip_w7s2.GetAddress(0), sendPort2));
-    Address w8Address(InetSocketAddress(ip_w8s2.GetAddress(0), sendPort2));
-    Address w9Address(InetSocketAddress(ip_w9s2.GetAddress(0), sendPort2)); 
 
     // 设置job1初始拥塞窗口和超时参数
     w0job1_ATPSocket->SetInitCwnd(job1_initCwnd);
@@ -406,27 +325,6 @@ main(int argc, char* argv[])
     w4job1_ATPSocket->SetInitCwnd(job1_initCwnd);
     w4job1_ATPSocket->SetRetxTimeout(retxTimeout);
     w4job1_ATPSocket->SetRetxCheckInterval(retxCheckInterval);
-
-    // 设置job2初始拥塞窗口和超时参数
-    w5job2_ATPSocket->SetInitCwnd(job2_initCwnd);
-    w5job2_ATPSocket->SetRetxTimeout(retxTimeout);
-    w5job2_ATPSocket->SetRetxCheckInterval(retxCheckInterval);
-    
-    w6job2_ATPSocket->SetInitCwnd(job2_initCwnd);
-    w6job2_ATPSocket->SetRetxTimeout(retxTimeout);
-    w6job2_ATPSocket->SetRetxCheckInterval(retxCheckInterval);
-
-    w7job2_ATPSocket->SetInitCwnd(job2_initCwnd);
-    w7job2_ATPSocket->SetRetxTimeout(retxTimeout);
-    w7job2_ATPSocket->SetRetxCheckInterval(retxCheckInterval);
-    
-    w8job2_ATPSocket->SetInitCwnd(job2_initCwnd);
-    w8job2_ATPSocket->SetRetxTimeout(retxTimeout);
-    w8job2_ATPSocket->SetRetxCheckInterval(retxCheckInterval);
-    
-    w9job2_ATPSocket->SetInitCwnd(job2_initCwnd);
-    w9job2_ATPSocket->SetRetxTimeout(retxTimeout);
-    w9job2_ATPSocket->SetRetxCheckInterval(retxCheckInterval);
     
     // Configure w0job1App
     uint8_t job1Id = 1;
@@ -518,100 +416,9 @@ main(int argc, char* argv[])
     w4job1_ATPSocket->Connect(sinkAddress1);
     nodes.Get(4)->AddApplication(w4job1App);
 
-    // Configure w5job2App
-    uint8_t job2Id = 2;
-    uint8_t job2_s1_faninDegree0 = 2; // w5, w6
-    uint8_t job2_s2_faninDegree0 = 3; // w7, w8, w9
-    uint8_t job2_s3_faninDegree1 = 2; // s1, s2
-    w5job2App->Setup(sinkAddress2, w5job2_ATPSocket, maxBytes, job2Id);
-    w5job2App->SetEnableATPTag(true);
-    w5job2App->SetStartTime(Seconds(1.0));
-    w5job2App->SetStopTime(stopTime);
-    w5job2App->SetFaninDegree0(job2_s1_faninDegree0);
-    w5job2App->SetFaninDegree1(job2_s3_faninDegree1);
-    w5job2App->SetBitmap0(0b01);
-    w5job2App->SetBitmap1(0b01);
-
-    w5job2_ATPSocket->SetConnectCallback(MakeCallback(&ATPBulkSendApplication::ConnectionSucceeded, w5job2App),
-                                MakeCallback(&ATPBulkSendApplication::ConnectionFailed, w5job2App));
-    w5job2_ATPSocket->SetSendCallback(MakeCallback(&ATPBulkSendApplication::DataSend, w5job2App));
-    w5job2_ATPSocket->Bind(w5Address);
-    w5job2_ATPSocket->Connect(sinkAddress2);
-    nodes.Get(5)->AddApplication(w5job2App);
-
-    // Configure w6job2App
-    w6job2App->Setup(sinkAddress2, w6job2_ATPSocket, maxBytes, job2Id);
-    w6job2App->SetEnableATPTag(true);
-    w6job2App->SetStartTime(Seconds(1.0));
-    w6job2App->SetStopTime(stopTime);
-    w6job2App->SetFaninDegree0(job2_s1_faninDegree0);
-    w6job2App->SetFaninDegree1(job2_s3_faninDegree1);
-    w6job2App->SetBitmap0(0b10);
-    w6job2App->SetBitmap1(0b01);
-
-    w6job2_ATPSocket->SetConnectCallback(MakeCallback(&ATPBulkSendApplication::ConnectionSucceeded, w6job2App),
-                                MakeCallback(&ATPBulkSendApplication::ConnectionFailed, w6job2App));
-    w6job2_ATPSocket->SetSendCallback(MakeCallback(&ATPBulkSendApplication::DataSend, w6job2App));
-    w6job2_ATPSocket->Bind(w6Address);
-    w6job2_ATPSocket->Connect(sinkAddress2);
-    nodes.Get(6)->AddApplication(w6job2App);
-
-    // Configure w7job2App
-    w7job2App->Setup(sinkAddress2, w7job2_ATPSocket, maxBytes, job2Id);
-    w7job2App->SetEnableATPTag(true);
-    w7job2App->SetStartTime(Seconds(1.0));
-    w7job2App->SetStopTime(stopTime);
-    w7job2App->SetFaninDegree0(job2_s2_faninDegree0);
-    w7job2App->SetFaninDegree1(job2_s3_faninDegree1);
-    w7job2App->SetBitmap0(0b001);
-    w7job2App->SetBitmap1(0b10);
-
-    w7job2_ATPSocket->SetConnectCallback(MakeCallback(&ATPBulkSendApplication::ConnectionSucceeded, w7job2App),
-                                MakeCallback(&ATPBulkSendApplication::ConnectionFailed, w7job2App));
-    w7job2_ATPSocket->SetSendCallback(MakeCallback(&ATPBulkSendApplication::DataSend, w7job2App));
-    w7job2_ATPSocket->Bind(w7Address);
-    w7job2_ATPSocket->Connect(sinkAddress2);
-    nodes.Get(7)->AddApplication(w7job2App);
-
-    // Configure w8job2App
-    w8job2App->Setup(sinkAddress2, w8job2_ATPSocket, maxBytes, job2Id);
-    w8job2App->SetEnableATPTag(true);
-    w8job2App->SetStartTime(Seconds(1.0));
-    w8job2App->SetStopTime(stopTime);
-    w8job2App->SetFaninDegree0(job2_s2_faninDegree0);
-    w8job2App->SetFaninDegree1(job2_s3_faninDegree1);
-    w8job2App->SetBitmap0(0b010);
-    w8job2App->SetBitmap1(0b10);
-
-    w8job2_ATPSocket->SetConnectCallback(MakeCallback(&ATPBulkSendApplication::ConnectionSucceeded, w8job2App),
-                                MakeCallback(&ATPBulkSendApplication::ConnectionFailed, w8job2App));
-    w8job2_ATPSocket->SetSendCallback(MakeCallback(&ATPBulkSendApplication::DataSend, w8job2App));
-    w8job2_ATPSocket->Bind(w8Address);
-    w8job2_ATPSocket->Connect(sinkAddress2);
-    nodes.Get(8)->AddApplication(w8job2App);
-
-    // Configure w9job2App
-    w9job2App->Setup(sinkAddress2, w9job2_ATPSocket, maxBytes, job2Id);
-    w9job2App->SetEnableATPTag(true);
-    w9job2App->SetStartTime(Seconds(1.0));
-    w9job2App->SetStopTime(stopTime);
-    w9job2App->SetFaninDegree0(job2_s2_faninDegree0);
-    w9job2App->SetFaninDegree1(job2_s3_faninDegree1);
-    w9job2App->SetBitmap0(0b100);
-    w9job2App->SetBitmap1(0b10);
-
-    w9job2_ATPSocket->SetConnectCallback(MakeCallback(&ATPBulkSendApplication::ConnectionSucceeded, w9job2App),
-                                MakeCallback(&ATPBulkSendApplication::ConnectionFailed, w9job2App));
-    w9job2_ATPSocket->SetSendCallback(MakeCallback(&ATPBulkSendApplication::DataSend, w9job2App));
-    w9job2_ATPSocket->Bind(w9Address);
-    w9job2_ATPSocket->Connect(sinkAddress2);
-    nodes.Get(9)->AddApplication(w9job2App);
-
     // 连接拥塞窗口跟踪
     w0job1_ATPSocket->GetTxBuffer()->TraceConnectWithoutContext("cwndTrace",
-         MakeCallback(&CwndChange_job1));
-    w9job2_ATPSocket->GetTxBuffer()->TraceConnectWithoutContext("cwndTrace",
-         MakeCallback(&CwndChange_job2));
+        MakeCallback(&CwndChange_job1));
 
     // 获取每个节点的静态路由对象
     ATPStaticRoutingHelper staticRoutingHelper;
@@ -760,12 +567,6 @@ main(int argc, char* argv[])
     sinkATPSocket1->AddAddressMapping(job1Id, ip_w3s1.GetAddress(0), sendPort1);  // job1 - w3
     sinkATPSocket1->AddAddressMapping(job1Id, ip_w4s1.GetAddress(0), sendPort1);  // job1 - w4
 
-    sinkATPSocket2->AddAddressMapping(job2Id, ip_w5s1.GetAddress(0), sendPort2);  // job2 - w5
-    sinkATPSocket2->AddAddressMapping(job2Id, ip_w6s1.GetAddress(0), sendPort2);  // job2 - w6
-    sinkATPSocket2->AddAddressMapping(job2Id, ip_w7s2.GetAddress(0), sendPort2);  // job2 - w7
-    sinkATPSocket2->AddAddressMapping(job2Id, ip_w8s2.GetAddress(0), sendPort2);  // job2 - w8
-    sinkATPSocket2->AddAddressMapping(job2Id, ip_w9s2.GetAddress(0), sendPort2);  // job2 - w9
-
     // 配置Job1的树形拓扑结构
     JobTree job1Tree(job1Id);
     job1Tree.fanInDegree1 = job1_s3_faninDegree1;  // 2 (s0 和 s1)
@@ -774,17 +575,8 @@ main(int argc, char* argv[])
     job1Tree.expectedFlatBitmap = 0b11111;  // 5个workers
     sinkATPSocket1->SetJobTree(job1Tree);
     
-    // 配置Job2的树形拓扑结构
-    JobTree job2Tree(job2Id);
-    job2Tree.fanInDegree1 = job2_s3_faninDegree1;  // 2 (s1 和 s2)
-    job2Tree.AddBranch(0, job2_s1_faninDegree0, 0b11);   // bitmap1位0: s1有2个workers
-    job2Tree.AddBranch(1, job2_s2_faninDegree0, 0b111);  // bitmap1位1: s2有3个workers
-    job2Tree.expectedFlatBitmap = 0b11111;  // 5个workers
-    sinkATPSocket2->SetJobTree(job2Tree);
-
     // 开始测量
     Simulator::Schedule(Seconds(1.0), &MeasurementTxJob1, w0job1_ATPSocket);
-    Simulator::Schedule(Seconds(1.0), &MeasurementTxJob2, w9job2_ATPSocket);
 
     //
     // Now, do the actual simulation.
@@ -796,15 +588,11 @@ main(int argc, char* argv[])
     NS_LOG_INFO("Done.");
 
     cwndStream_job1.close();
-    cwndStream_job2.close();
     sendBytesStream_job1.close();
-    sendBytesStream_job2.close();
 
     std::cout << "job1 Total Bytes Sent: " << w0job1_ATPSocket->GetTotalTxBytes() << std::endl;
-    std::cout << "job2 Total Bytes Sent: " << w5job2_ATPSocket->GetTotalTxBytes() << std::endl;
 
     std::cout << " job1 total recv Bytes: " << sinkApp1->GetTotalRxJob(job1Id) << std::endl;
-    std::cout << " job2 total recv Bytes: " << sinkApp2->GetTotalRxJob(job2Id) << std::endl;
 
     // Get atp l4 protocol
     Ptr<ATPL4Protocol> s0_atpl4 = staticRouting_s0->GetATPL4Protocol();
@@ -816,12 +604,8 @@ main(int argc, char* argv[])
     std::cout << "s0_atpl4 job1 hash collision counter: " << s0_atpl4->GetJobIdHashCollisionCounter(job1Id) << std::endl;
     
     std::cout << "s1_atpl4 job1 hash collision counter: " << s1_atpl4->GetJobIdHashCollisionCounter(job1Id) << std::endl;
-    std::cout << "s1_atpl4 job2 hash collision counter: " << s1_atpl4->GetJobIdHashCollisionCounter(job2Id) << std::endl;
-    
-    std::cout << "s2_atpl4 job2 hash collision counter: " << s2_atpl4->GetJobIdHashCollisionCounter(job2Id) << std::endl;
-    
+
     std::cout << "s3_atpl4 job1 hash collision counter: " << s3_atpl4->GetJobIdHashCollisionCounter(job1Id) << std::endl;
-    std::cout << "s3_atpl4 job2 hash collision counter: " << s3_atpl4->GetJobIdHashCollisionCounter(job2Id) << std::endl;
 
     return 0;
 }

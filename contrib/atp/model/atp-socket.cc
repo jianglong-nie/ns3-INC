@@ -70,7 +70,7 @@ ATPSocket::ATPSocket()
     m_txBuffer->SetCwnd(m_initCwnd);
     // m_rxBuffer已经定义了
 
-    m_aggregators.resize(MAX_AGGREGATORS);
+    //m_aggregators.resize(MAX_AGGREGATORS);
 }
 
 ATPSocket::~ATPSocket()
@@ -869,105 +869,82 @@ ATPSocket::AggregatePacket(Ptr<Packet> packet,
     );
 
     // 使用哈希函数计算索引
-    std::size_t index = JobAggregator::HashToIndex(
-        atpTag.GetJobId(), 
-        atpTag.GetSeqNum(), 
-        MAX_AGGREGATORS
-    );
+    auto key = std::make_pair(atpTag.GetJobId(), atpTag.GetSeqNum());
     
     // 获取对应的聚合器
-    JobAggregator& aggregator = m_aggregators[index];
+    auto it = m_aggregators.find(key);
 
-    // 如果聚合器为空，或者jobId和seqNum都匹配
-    if (aggregator.IsEmpty() || 
-        (aggregator.m_jobId == atpTag.GetJobId() && 
-         aggregator.m_seqNum == atpTag.GetSeqNum()))
+    if (it == m_aggregators.end()) {
+        // 如果不存在，创建一个新的聚合器
+        it = m_aggregators.emplace(key, JobAggregator()).first;
+        it->second.m_jobId = atpTag.GetJobId();
+        it->second.m_seqNum = atpTag.GetSeqNum();
+        NS_LOG_INFO("Created new aggregator for jobId " 
+                    << static_cast<int>(atpTag.GetJobId())
+                    << " seqNum " << atpTag.GetSeqNum());
+    }
+    
+    JobAggregator& aggregator = it->second;
+
+    // 处理数据包，更新 flat_bitmap
+    aggregator.ProcessPacket(packet, incoming_flat_bitmap);
+
+    // 从 JobTree 获取期望的 flat_bitmap
+    auto tree_it = m_jobTreeMap.find(atpTag.GetJobId());
+    if (tree_it == m_jobTreeMap.end()) {
+        NS_LOG_ERROR("No JobTree found for jobId " << (uint32_t)atpTag.GetJobId());
+        return;
+    }
+    uint32_t expected_flat_bitmap = tree_it->second.expectedFlatBitmap;
+
+    // 检查聚合是否完成
+    bool aggregationComplete = aggregator.IsComplete(expected_flat_bitmap);
+
+    if (aggregationComplete)
     {
-        // 如果是空的，初始化jobId和seqNum
-        if (aggregator.IsEmpty()) {
-            aggregator.m_jobId = atpTag.GetJobId();
-            aggregator.m_seqNum = atpTag.GetSeqNum();
-            NS_LOG_INFO("Using empty aggregator at index " << index 
-                        << " for jobId " << static_cast<int>(atpTag.GetJobId())
-                        << " seqNum " << atpTag.GetSeqNum());
-        }
+        NS_LOG_INFO("ATPSocket: Aggregation complete for jobId " 
+                    << static_cast<int>(atpTag.GetJobId())
+                    << " seqNum " << atpTag.GetSeqNum()
+                    << " flat_bitmap=0x" << std::hex << aggregator.m_flat_bitmap);
+        
+        // 获取聚合后的数据包（用于交付）
+        Ptr<Packet> aggregatedPacket = aggregator.GetResultPacket();
 
-        // 处理数据包，更新 flat_bitmap
-        aggregator.ProcessPacket(packet, incoming_flat_bitmap);
+        // 从 map 中删除已完成的聚合器，避免内存无限增长
+        m_aggregators.erase(it);
 
-        // 从 JobTree 获取期望的 flat_bitmap
-        auto tree_it = m_jobTreeMap.find(atpTag.GetJobId());
-        if (tree_it == m_jobTreeMap.end()) {
-            NS_LOG_ERROR("No JobTree found for jobId " << (uint32_t)atpTag.GetJobId());
-            return;
-        }
-        uint32_t expected_flat_bitmap = tree_it->second.expectedFlatBitmap;
-
-        // 检查聚合是否完成
-        bool aggregationComplete = aggregator.IsComplete(expected_flat_bitmap);
-
-        if (aggregationComplete)
+        // 将数据包加入接收缓冲区
+        if ((m_rxAvailable - aggregatedPacket->GetSize()) >= 0)
         {
-            NS_LOG_INFO("ATPSocket: Aggregation complete for jobId " 
-                        << static_cast<int>(atpTag.GetJobId())
-                        << " seqNum " << atpTag.GetSeqNum()
-                        << " flat_bitmap=0x" << std::hex << aggregator.m_flat_bitmap);
+            m_rxBuffer.emplace(aggregatedPacket, address);
+            m_rxAvailable -= aggregatedPacket->GetSize();
+
+            // 调度发送 multi-ack
+            if (!m_sendMultiAckEvent.IsPending()) {
+                m_sendMultiAckEvent = Simulator::Schedule(
+                    TimeStep(1),
+                    &ATPSocket::SendMultiAck,
+                    this,
+                    atpTag,
+                    header
+                );
+            }
             
-            // 获取聚合后的数据包（用于交付）
-            Ptr<Packet> aggregatedPacket = aggregator.GetResultPacket();
-
-            // 重置聚合器，为下一个序列号做准备
-            aggregator.Reset();
-
-            // 将数据包加入接收缓冲区
-            if ((m_rxAvailable - aggregatedPacket->GetSize()) >= 0)
-            {
-                m_rxBuffer.emplace(aggregatedPacket, address);
-                m_rxAvailable -= aggregatedPacket->GetSize();
-
-                // 调度发送 multi-ack
-                if (!m_sendMultiAckEvent.IsPending()) {
-                    m_sendMultiAckEvent = Simulator::Schedule(
-                        TimeStep(1),
-                        &ATPSocket::SendMultiAck,
-                        this,
-                        atpTag,
-                        header
-                    );
-                }
-                
-                // 通知应用层有数据可读
-                NS_LOG_INFO("NotifyDataRecv");
-                NotifyDataRecv();
-            }
-            else
-            {
-                NS_LOG_WARN("ATPSocket: No receive buffer space available. Drop.");
-                m_dropTrace(aggregatedPacket);
-            }
+            // 通知应用层有数据可读
+            NS_LOG_INFO("NotifyDataRecv");
+            NotifyDataRecv();
         }
         else
         {
-            NS_LOG_INFO("ATPSocket: Waiting for more packets. Current flat_bitmap=0x" 
-                        << std::hex << aggregator.m_flat_bitmap
-                        << " expected=0x" << expected_flat_bitmap);
+            NS_LOG_WARN("ATPSocket: No receive buffer space available. Drop.");
+            m_dropTrace(aggregatedPacket);
         }
     }
     else
     {
-        // 哈希冲突：这个槽位被不同的 (jobId, seqNum) 占用了
-        NS_LOG_WARN("ATPSocket: Hash collision at index " << index 
-                    << " expected (jobId=" << (uint32_t)aggregator.m_jobId
-                    << ", seqNum=" << aggregator.m_seqNum << ")"
-                    << " got (jobId=" << (uint32_t)atpTag.GetJobId()
-                    << ", seqNum=" << atpTag.GetSeqNum() << ")");
-        
-        // 强制重置并使用新的包
-        NS_LOG_WARN("Forcing aggregator reset due to collision");
-        aggregator.Reset();
-        aggregator.m_jobId = atpTag.GetJobId();
-        aggregator.m_seqNum = atpTag.GetSeqNum();
-        aggregator.ProcessPacket(packet, incoming_flat_bitmap);
+        NS_LOG_INFO("ATPSocket: Waiting for more packets. Current flat_bitmap=0x" 
+                    << std::hex << aggregator.m_flat_bitmap
+                    << " expected=0x" << expected_flat_bitmap);
     }
 }
 

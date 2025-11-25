@@ -30,20 +30,19 @@ public:
     void Reset();
 
     // 添加静态哈希函数
-    
+    /*
     static std::size_t HashToIndex(uint8_t jobId, uint32_t seqNum, uint32_t MAX_AGGREGATORS) {
         std::size_t h1 = std::hash<uint8_t>()(jobId);
         std::size_t h2 = std::hash<uint32_t>()(seqNum);
         return ((h1 << 1) ^ h2) % MAX_AGGREGATORS;
     }
-    /*
+    */
     static std::size_t HashToIndex(uint8_t jobId, uint32_t seqNum, uint32_t MAX_AGGREGATORS) {
         std::size_t seed = 0;
         boost::hash_combine(seed, jobId);
         boost::hash_combine(seed, seqNum);
         return seed % MAX_AGGREGATORS;
     }
-    */
         
 };
 
@@ -71,10 +70,19 @@ public:
     
     void Reset();
 
+    /*
     static std::size_t HashToIndex(uint8_t jobId, uint32_t seqNum, uint32_t MAX_AGGREGATORS) {
         std::size_t h1 = std::hash<uint8_t>()(jobId);
         std::size_t h2 = std::hash<uint32_t>()(seqNum);
         return ((h1 << 1) ^ h2) % MAX_AGGREGATORS;
+    }
+    */
+
+    static std::size_t HashToIndex(uint8_t jobId, uint32_t seqNum, uint32_t MAX_AGGREGATORS) {
+        std::size_t seed = 0;
+        boost::hash_combine(seed, jobId);
+        boost::hash_combine(seed, seqNum);
+        return seed % MAX_AGGREGATORS;
     }
 };
 

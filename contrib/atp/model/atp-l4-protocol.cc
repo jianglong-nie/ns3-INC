@@ -321,6 +321,9 @@ ATPL4Protocol::AggregatePacket(Ptr<Packet> packet)
 
         packet->AddPacketTag(atpTag);
 
+
+        m_jobIdHashCollisionCounter[atpTag.GetJobId()]++;
+
         NS_LOG_INFO("Hash Collision!");
         return packet;
     }

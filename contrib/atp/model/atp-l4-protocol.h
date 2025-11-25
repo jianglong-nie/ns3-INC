@@ -87,6 +87,15 @@ class ATPL4Protocol : public IpL4Protocol
     void SetEnableAggregation(bool enable);
     Ptr<Packet> AggregatePacket(Ptr<Packet> packet);
     Ptr<Packet> FilterPacket(Ptr<Packet> packet);
+
+    uint32_t GetJobIdHashCollisionCounter(uint8_t jobId) const { 
+      auto it = m_jobIdHashCollisionCounter.find(jobId);
+      if (it != m_jobIdHashCollisionCounter.end()) {
+        return it->second;
+      }
+      return 0;
+    };
+
   
   protected:
     void DoDispose() override;
@@ -102,8 +111,11 @@ class ATPL4Protocol : public IpL4Protocol
     IpL4Protocol::DownTargetCallback m_downTarget;   //!< Callback to send packets over IPv4
     IpL4Protocol::DownTargetCallback6 m_downTarget6; //!< Callback to send packets over IPv6
 
-    static const uint32_t MAX_AGGREGATORS = 128;  //!< Maximum number of aggregators
+    static const uint32_t MAX_AGGREGATORS = 65536;  //!< Maximum number of aggregators
     std::vector<Aggregator> m_aggregators;         //!< Vector of aggregators
+
+    //hash collision counter <jobId, collision count>
+    std::unordered_map<uint8_t, uint32_t> m_jobIdHashCollisionCounter{{0, 0}, {1, 0}};
 
     /**
      * Trace source for packets dropped at L4 layer

@@ -48,7 +48,7 @@ Aggregator::ProcessPacket(Ptr<Packet> packet)
         temp_bitmap = atpTag.m_bitmap1;
         temp_faninDegree = atpTag.m_faninDegree1;
         temp_edgeSwitchIdentifier = atpTag.m_edgeSwitchIdentifier;
-        atpTag.m_edgeSwitchIdentifier = 0;
+        // atpTag.m_edgeSwitchIdentifier = 0;
     }
 
     // 判断该包是否被聚合过了, temp_bitmap的某个bit为1,判断m_bitmap某个位置bit是否为1
@@ -84,7 +84,7 @@ Ptr<Packet>
 Aggregator::GetResultPacket() const
 {
     NS_LOG_FUNCTION(this);
-    return m_packet;
+    return m_packet->Copy();
 }
 
 void
