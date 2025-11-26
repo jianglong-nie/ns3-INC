@@ -77,7 +77,7 @@ main(int argc, char* argv[])
     cwndStream_job1.open("atp-result/trace-atp-newtopo-1job/job1-cwnd-trace-atp-twojobs.txt", std::ofstream::out | std::ofstream::trunc);
     sendBytesStream_job1.open("atp-result/trace-atp-newtopo-1job/job1-sendBytes-trace-atp-twojobs.txt", std::ofstream::out | std::ofstream::trunc);
 
-    uint32_t maxBytes = 0;
+    uint32_t maxBytes = 248 * 10;
     Time stopTime = Seconds(1.0) + MicroSeconds(10001); // 约8us为一个rtt时间
 
     // 设置job1和job2初始拥塞窗口

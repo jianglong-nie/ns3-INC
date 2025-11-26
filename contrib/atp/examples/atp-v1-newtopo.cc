@@ -108,7 +108,7 @@ main(int argc, char* argv[])
     sendBytesStream_job1.open("atp-result/trace-atp-newtopo/job1-sendBytes-trace-atp-twojobs.txt", std::ofstream::out | std::ofstream::trunc);
     sendBytesStream_job2.open("atp-result/trace-atp-newtopo/job2-sendBytes-trace-atp-twojobs.txt", std::ofstream::out | std::ofstream::trunc);
 
-    uint32_t maxBytes = 248 * 10;
+    uint32_t maxBytes = 0;
     Time stopTime = Seconds(1.0) + MicroSeconds(10001); // 约8us为一个rtt时间
 
     // 设置job1和job2初始拥塞窗口
@@ -768,6 +768,7 @@ main(int argc, char* argv[])
 
     // 配置Job1的树形拓扑结构
     JobTree job1Tree(job1Id);
+    job1Tree.fullBitmap1 = 0b11;  // 2 (s0 和 s1)
     job1Tree.fanInDegree1 = job1_s3_faninDegree1;  // 2 (s0 和 s1)
     job1Tree.AddBranch(0, job1_s0_faninDegree0, 0b111);  // bitmap1位0: s0有3个workers
     job1Tree.AddBranch(1, job1_s1_faninDegree0, 0b11);   // bitmap1位1: s1有2个workers
@@ -776,6 +777,7 @@ main(int argc, char* argv[])
     
     // 配置Job2的树形拓扑结构
     JobTree job2Tree(job2Id);
+    job2Tree.fullBitmap1 = 0b11;  // 2 (s1 和 s2)
     job2Tree.fanInDegree1 = job2_s3_faninDegree1;  // 2 (s1 和 s2)
     job2Tree.AddBranch(0, job2_s1_faninDegree0, 0b11);   // bitmap1位0: s1有2个workers
     job2Tree.AddBranch(1, job2_s2_faninDegree0, 0b111);  // bitmap1位1: s2有3个workers
@@ -800,8 +802,16 @@ main(int argc, char* argv[])
     sendBytesStream_job1.close();
     sendBytesStream_job2.close();
 
-    std::cout << "job1 Total Bytes Sent: " << w0job1_ATPSocket->GetTotalTxBytes() << std::endl;
-    std::cout << "job2 Total Bytes Sent: " << w5job2_ATPSocket->GetTotalTxBytes() << std::endl;
+    std::cout << "job1-w0 Total Bytes Sent: " << w0job1_ATPSocket->GetTotalTxBytes() << std::endl;
+    std::cout << "job1-w1 Total Bytes Sent: " << w1job1_ATPSocket->GetTotalTxBytes() << std::endl;
+    std::cout << "job1-w2 Total Bytes Sent: " << w2job1_ATPSocket->GetTotalTxBytes() << std::endl;
+    std::cout << "job1-w3 Total Bytes Sent: " << w3job1_ATPSocket->GetTotalTxBytes() << std::endl;
+    std::cout << "job1-w4 Total Bytes Sent: " << w4job1_ATPSocket->GetTotalTxBytes() << std::endl;
+    std::cout << "job2-w5 Total Bytes Sent: " << w5job2_ATPSocket->GetTotalTxBytes() << std::endl;
+    std::cout << "job2-w6 Total Bytes Sent: " << w6job2_ATPSocket->GetTotalTxBytes() << std::endl;
+    std::cout << "job2-w7 Total Bytes Sent: " << w7job2_ATPSocket->GetTotalTxBytes() << std::endl;
+    std::cout << "job2-w8 Total Bytes Sent: " << w8job2_ATPSocket->GetTotalTxBytes() << std::endl;
+    std::cout << "job2-w9 Total Bytes Sent: " << w9job2_ATPSocket->GetTotalTxBytes() << std::endl;
 
     std::cout << " job1 total recv Bytes: " << sinkApp1->GetTotalRxJob(job1Id) << std::endl;
     std::cout << " job2 total recv Bytes: " << sinkApp2->GetTotalRxJob(job2Id) << std::endl;

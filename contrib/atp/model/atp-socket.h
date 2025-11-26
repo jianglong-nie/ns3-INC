@@ -68,10 +68,11 @@ struct JobTree
 {
     uint8_t jobId;                              //!< 作业ID
     uint8_t fanInDegree1;                       //!< 第二层（核心层）的扇入度
+    uint32_t fullBitmap1;                           //!< 第二层（核心层）的bitmap1值
     std::map<uint32_t, AggregationBranch> branches;  //!< 分支映射表：bitmap1位位置 -> 分支信息
     uint32_t expectedFlatBitmap;                //!< 期望的完整flat_bitmap（所有worker到达）
     
-    JobTree(uint8_t jid = 0) : jobId(jid), fanInDegree1(0), expectedFlatBitmap(0) {}
+    JobTree(uint8_t jid = 0) : jobId(jid), fanInDegree1(0), fullBitmap1(0), expectedFlatBitmap(0) {}
     
     /**
      * \brief 添加一个聚合分支
@@ -90,42 +91,55 @@ struct JobTree
      * \param bitmap1 当前的bitmap1
      * \return 对应的flat_bitmap
      */
+    // JobTree 内部
     uint32_t ConvertToFlatBitmap(uint32_t bitmap0, uint32_t bitmap1) const
     {
-        uint32_t flat_bitmap = 0;
-        uint32_t worker_offset = 0;  // worker在flat_bitmap中的起始位置
-        
-        // 按照bitmap1的位顺序处理每个分支
-        for (uint32_t b1_pos = 0; b1_pos < 32; b1_pos++) {
-            auto it = branches.find(b1_pos);
-            if (it != branches.end()) {
+        uint32_t flat_bitmap   = 0;
+        uint32_t worker_offset = 0;  // 当前分支在 flat_bitmap 中的起始 bit 位置
+
+        // 存在多种情况
+        // 1. 完全聚合，bitmap1里对应分支为都为1,bitmap0为随机值无所谓（=最后一个到第二层执行聚合的包里的bitmap0值
+        //    返回 expectedFlatBitmap
+        // 2. 1层聚合，bitmap1中一个分支为1，该分支下bitmap0的所有worker位都为1
+        // 3. 没有聚合，bitmap1中一个分支为1，该分支下bitmap0的一个worker位为1
+        // 4. 重传包导致的局部聚合，bitmap1中一个分支为1，该分支下bitmap0多个worker位为1
+
+        if (bitmap1 == fullBitmap1)
+        {
+            return expectedFlatBitmap;
+        }
+        else
+        {
+            for (uint32_t b1_pos = 0; b1_pos < 32; ++b1_pos)
+            {
+                auto it = branches.find(b1_pos);
+                if (it == branches.end())
+                {
+                    continue;
+                }
                 const AggregationBranch& branch = it->second;
+
+                if (bitmap1 & (1u << b1_pos))
+                {
+                    flat_bitmap |= (bitmap0 << worker_offset);
+                }
+                worker_offset += branch.fanInDegree0;
                 
-                // 如果这个分支在bitmap1中被标记
-                if (bitmap1 & (1u << b1_pos)) {
-                    // 将该分支的bitmap0映射到flat_bitmap
-                    for (uint32_t w = 0; w < branch.fanInDegree0; w++) {
-                        flat_bitmap |= (1u << (worker_offset + w));
-                    }
-              }
-              
-              // 移动到下一个分支的worker位置
-              worker_offset += branch.fanInDegree0;
-          }
-      }
-      
-      return flat_bitmap;
-  }
+            }
+        }
+
+        return flat_bitmap;
+    }
   
-  /**
-   * \brief 检查聚合是否完成
-   * \param flat_bitmap 当前的flat_bitmap
-   * \return 是否所有worker都已到达
-   */
-  bool IsAggregationComplete(uint32_t flat_bitmap) const
-  {
-      return flat_bitmap == expectedFlatBitmap;
-  }
+    /**
+     * \brief 检查聚合是否完成
+     * \param flat_bitmap 当前的flat_bitmap
+     * \return 是否所有worker都已到达
+     */
+    bool IsAggregationComplete(uint32_t flat_bitmap) const
+    {
+        return flat_bitmap == expectedFlatBitmap;
+    }
 };
 
 /**
