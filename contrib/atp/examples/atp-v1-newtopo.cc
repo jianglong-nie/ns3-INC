@@ -119,7 +119,7 @@ main(int argc, char* argv[])
     // 设置超时重传参数
     // 当数据包发送后超过retxTimeout时间未收到ACK，将触发重传
     // retxCheckInterval是定期检查超时的间隔时间
-    Time retxTimeout = MicroSeconds(16);         // 重传超时时间：12us（可调整）
+    Time retxTimeout = MicroSeconds(20);         // 重传超时时间：12us（可调整）
     Time retxCheckInterval = MicroSeconds(2);   // 超时检查间隔：6us（可调整）
 
     // 在文件打开后，写入初始拥塞窗口值
@@ -214,11 +214,11 @@ main(int argc, char* argv[])
     n2Device->SetQueue(customQueue);
     */
 
-    s0s3Device->SetThreshold(160);
-    s1s3Device->SetThreshold(160);
-    s2s3Device->SetThreshold(160);
-    s3ps1Device->SetThreshold(160);
-    s3ps2Device->SetThreshold(160);
+    s0s3Device->SetThreshold(350);
+    s1s3Device->SetThreshold(350);
+    s2s3Device->SetThreshold(350);
+    s3ps1Device->SetThreshold(350);
+    s3ps2Device->SetThreshold(350);
 
     s0s3Device->SetEnableEcn(true);
     s1s3Device->SetEnableEcn(true);

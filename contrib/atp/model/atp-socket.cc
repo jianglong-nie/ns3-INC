@@ -688,12 +688,14 @@ ATPSocket::CheckRetransmitTimeout()
         // 触发重传
         Retransmit();
         
+        /*
         // 由于发生超时，可能需要减小拥塞窗口（类似于ECN机制）
         if (!m_ecnTimerRunning) {
             m_txBuffer->ProcessCongestion(true);
             m_ecnTimerEvent = Simulator::Schedule(MicroSeconds(200), &ATPSocket::ResetEcnTimer, this);
             m_ecnTimerRunning = true;
         }
+        */
     }
     
     // 继续调度下一次检查
@@ -748,11 +750,14 @@ ATPSocket::ReceiveAck(ATPTag atpTag)
         // 处理乱序到达的ack
         Ptr<Packet> packet = m_txBuffer->ProcessUnorderedAck(atpTag.GetSeqNum());
         if (packet != nullptr) {
+            /*
             if (!m_ecnTimerRunning) {
                 m_txBuffer->ProcessCongestion(true);
                 m_ecnTimerEvent = Simulator::Schedule(MicroSeconds(200), &ATPSocket::ResetEcnTimer, this);
                 m_ecnTimerRunning = true;
             }
+            */
+                
             // 执行重传函数
             Retransmit();
         }

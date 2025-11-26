@@ -121,7 +121,10 @@ struct JobTree
 
                 if (bitmap1 & (1u << b1_pos))
                 {
-                    flat_bitmap |= (bitmap0 << worker_offset);
+                     // 只取属于这个分支的本地 worker bits
+                    uint32_t localBits = bitmap0 & branch.fullBitmap0;
+                    // 将本分支的 bits 映射到全局 flat_bitmap
+                    flat_bitmap |= (localBits << worker_offset);
                 }
                 worker_offset += branch.fanInDegree0;
                 
