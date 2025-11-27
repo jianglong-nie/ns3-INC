@@ -364,7 +364,7 @@ ATPTxBuffer::CheckAndMoveTimeoutPackets(uint32_t timeoutUs)
             
             m_retxQueue.push(retxItem);
             
-            delete item;
+            tempQueue.push(item);
             timeoutCount++;
         } else {
             // 没有超时，保留在队列中
