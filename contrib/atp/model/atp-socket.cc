@@ -73,7 +73,7 @@ ATPSocket::ATPSocket()
     m_txBuffer->SetCwnd(m_initCwnd);
     // m_rxBuffer已经定义了
 
-    m_aggregators.resize(MAX_AGGREGATORS);
+    //m_aggregators.resize(MAX_AGGREGATORS);
 }
 
 ATPSocket::~ATPSocket()
@@ -696,13 +696,14 @@ ATPSocket::CheckRetransmitTimeout()
         
         // 触发重传
         Retransmit();
-        
+        /*
         // 由于发生超时，可能需要减小拥塞窗口（类似于ECN机制）
         if (!m_ecnTimerRunning) {
             m_txBuffer->ProcessCongestion(true);
             m_ecnTimerEvent = Simulator::Schedule(MicroSeconds(200), &ATPSocket::ResetEcnTimer, this);
             m_ecnTimerRunning = true;
         }
+        */
     }
     
     // 继续调度下一次检查
@@ -757,11 +758,13 @@ ATPSocket::ReceiveAck(ATPTag atpTag)
         // 处理乱序到达的ack
         Ptr<Packet> packet = m_txBuffer->ProcessUnorderedAck(atpTag.GetAckNumber());
         if (packet != nullptr) {
+            /*
             if (!m_ecnTimerRunning) {
                 m_txBuffer->ProcessCongestion(true);
                 m_ecnTimerEvent = Simulator::Schedule(MicroSeconds(200), &ATPSocket::ResetEcnTimer, this);
                 m_ecnTimerRunning = true;
             }
+            */
             // 执行重传函数
             Retransmit();
         }
@@ -872,84 +875,68 @@ ATPSocket::AggregatePacket(Ptr<Packet> packet,
     ATPTag atpTag;
     packet->PeekPacketTag(atpTag);
 
-    // 使用Aggregator类的哈希函数计算索引
-    std::size_t index = Aggregator::HashToIndex(atpTag.GetJobId(), atpTag.GetSeqNumber(), MAX_AGGREGATORS);
-    
+    // 使用哈希函数计算索引
+    auto key = std::make_pair(atpTag.GetJobId(), atpTag.GetSeqNumber());
+
     // 获取对应的聚合器
-    Aggregator& aggregator = m_aggregators[index];
+    auto it = m_aggregators.find(key);
 
-    // 如果聚合器为空，或者jobId和seqNum都匹配
-    if (aggregator.IsEmpty() || 
-        (aggregator.m_jobId == atpTag.GetJobId() && 
-         aggregator.m_seqNum == atpTag.GetSeqNumber()))
+    if (it == m_aggregators.end()) {
+        // 如果不存在，创建一个新的聚合器
+        it = m_aggregators.emplace(key, Aggregator()).first;
+        it->second.m_jobId = atpTag.GetJobId();
+        it->second.m_seqNum = atpTag.GetSeqNumber();
+        it->second.m_jobFaninDegree[atpTag.GetJobId()] = atpTag.GetFaninDegree();
+        NS_LOG_INFO("Created new aggregator for jobId " 
+                    << static_cast<int>(atpTag.GetJobId())
+                    << " seqNum " << atpTag.GetSeqNumber());
+    }
+    
+    Aggregator& aggregator = it->second;
+
+    // 添加数据包到聚合器
+    bool aggregationComplete = aggregator.AddPacket(packet);
+    if (aggregationComplete)
     {
-        // 如果是空的，初始化jobId和seqNum
-        if (aggregator.IsEmpty()) {
-            aggregator.m_jobId = atpTag.GetJobId();
-            aggregator.m_seqNum = atpTag.GetSeqNumber();
-            aggregator.m_jobFaninDegree[atpTag.GetJobId()] = atpTag.GetFaninDegree();
-            NS_LOG_INFO("Using empty aggregator at index " << index 
-                        << " for jobId " << static_cast<int>(atpTag.GetJobId())
-                        << " seqNum " << static_cast<int>(atpTag.GetSeqNumber()));
-        }
+        NS_LOG_INFO("ATPSocket: Aggregation complete for jobId " << static_cast<int>(atpTag.GetJobId())
+                    << " seqNum " << static_cast<int>(atpTag.GetSeqNumber()));
+        
+        // 获取聚合后的数据包
+        Ptr<Packet> aggregatedPacket = aggregator.GetAggregatedPacket();
 
-        // 添加数据包到聚合器
-        bool aggregationComplete = aggregator.AddPacket(packet);
-        if (aggregationComplete)
+        // 从 map 中删除已完成的聚合器，避免内存无限增长
+        m_aggregators.erase(it);
+
+        // 将聚合后数据包加入接收缓冲区
+        if ((m_rxAvailable - aggregatedPacket->GetSize()) >= 0)
         {
-            NS_LOG_INFO("ATPSocket: Aggregation complete for jobId " << static_cast<int>(atpTag.GetJobId())
-                        << " seqNum " << static_cast<int>(atpTag.GetSeqNumber()));
-            
-            // 获取聚合后的数据包
-            Ptr<Packet> aggregatedPacket = aggregator.GetAggregatedPacket();
+            m_rxBuffer.emplace(aggregatedPacket, address);
+            m_rxAvailable -= aggregatedPacket->GetSize();
 
-            //ATPTag atpTag;
-            //aggregatedPacket->RemovePacketTag(atpTag);
-
-            // 重置聚合器
-            aggregator.Reset();
-
-            // 将聚合后数据包加入接收缓冲区
-            if ((m_rxAvailable - aggregatedPacket->GetSize()) >= 0)
-            {
-                m_rxBuffer.emplace(aggregatedPacket, address);
-                m_rxAvailable -= aggregatedPacket->GetSize();
-
-                if (!m_sendMultiAckEvent.IsPending()) {
-                    m_sendMultiAckEvent = Simulator::Schedule(TimeStep(1),
-                                                                &ATPSocket::SendMultiAck,
-                                                                this,
-                                                                atpTag,
-                                                                header);
-                }
-                // 通知应用层有数据可读
-                NS_LOG_INFO("NotifyDataRecv");
-                NotifyDataRecv();
+            if (!m_sendMultiAckEvent.IsPending()) {
+                m_sendMultiAckEvent = Simulator::Schedule(TimeStep(1),
+                                                            &ATPSocket::SendMultiAck,
+                                                            this,
+                                                            atpTag,
+                                                            header);
             }
-            else
-            {
-                NS_LOG_WARN("ATPSocket: No receive buffer space available.  Drop.");
-                m_dropTrace(packet);
-            }
+            // 通知应用层有数据可读
+            NS_LOG_INFO("NotifyDataRecv");
+            NotifyDataRecv();
+        }
+        else
+        {
+            NS_LOG_WARN("ATPSocket: No receive buffer space available.  Drop.");
+            m_dropTrace(packet);
         }
     }
     else
     {
-        NS_LOG_WARN("ATPSocket: Hash collision at index " << index << ", drop the packet");
-        // 哈希冲突：这个槽位被不同的 (jobId, seqNum) 占用了
-        NS_LOG_WARN("ATPSocket: Hash collision at index " << index 
-                    << " expected (jobId=" << (uint32_t)aggregator.m_jobId
-                    << ", seqNum=" << aggregator.m_seqNum << ")"
-                    << " got (jobId=" << (uint32_t)atpTag.GetJobId()
-                    << ", seqNum=" << atpTag.GetSeqNumber() << ")");
-
-        // 强制重置并使用新的包
-        NS_LOG_WARN("Forcing aggregator reset due to collision");
-        aggregator.Reset();
-        aggregator.m_jobId = atpTag.GetJobId();
-        aggregator.m_seqNum = atpTag.GetSeqNumber();
-        aggregator.AddPacket(packet);
-
+        NS_LOG_INFO("ATPSocket: Waiting for more packets. Current aggregator's jobId="
+                    << static_cast<int>(atpTag.GetJobId())
+                    << " seqNum=" << static_cast<int>(atpTag.GetSeqNumber())
+                    << " workerIdAgg=" << static_cast<int>(aggregator.m_workerIdAgg)
+                    << " expected=" << static_cast<int>(aggregator.m_jobFaninDegree[atpTag.GetJobId()]));
     }
 }
 

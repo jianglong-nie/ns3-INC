@@ -92,6 +92,14 @@ class ATPL4Protocol : public IpL4Protocol
     // 设置层ID（用于分层哈希）
     void SetLayerId(uint8_t layerId);
     uint8_t GetLayerId() const;
+
+    uint32_t GetJobIdHashCollisionCounter(uint8_t jobId) const { 
+        auto it = m_jobIdHashCollisionCounter.find(jobId);
+        if (it != m_jobIdHashCollisionCounter.end()) {
+          return it->second;
+        }
+        return 0;
+      };
   
   protected:
     void DoDispose() override;
@@ -112,6 +120,9 @@ class ATPL4Protocol : public IpL4Protocol
     uint8_t m_layerId{0};  //!< 层ID，用于分层哈希避免连环冲突
     static const uint32_t MAX_AGGREGATORS = 128;  //!< Maximum number of aggregators
     std::vector<Aggregator> m_aggregators;         //!< Vector of aggregators
+
+    //hash collision counter <jobId, collision count>
+    std::unordered_map<uint8_t, uint32_t> m_jobIdHashCollisionCounter{{0, 0}, {1, 0}};
 
     /**
      * Trace source for packets dropped at L4 layer

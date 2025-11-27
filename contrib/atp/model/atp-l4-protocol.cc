@@ -332,6 +332,9 @@ ATPL4Protocol::AggregatePacket(Ptr<Packet> packet)
         << ", seqNum = " << static_cast<int>(atpTag.GetSeqNumber())
         << ", workerId = " << static_cast<int>(atpTag.GetWorkerId())
         << ", layerId = " << static_cast<int>(m_layerId) << " detected hash collision. Returning original packet.");
+        
+        m_jobIdHashCollisionCounter[atpTag.GetJobId()]++;
+
         return packet;
     }
 }

@@ -33,6 +33,15 @@ class ATPRxBuffer;
 class ATPL4Protocol;
 class Ipv4EndPoint;
 
+struct PairHash {
+    std::size_t operator()(const std::pair<uint8_t, uint32_t>& p) const {
+        std::size_t seed = 0;
+        boost::hash_combine(seed, p.first);
+        boost::hash_combine(seed, p.second);
+        return seed;
+    }
+};
+
 /**
  * \brief ATP Socket实现
  * 
@@ -178,8 +187,12 @@ class ATPSocket : public Socket
     uint32_t m_txAvailable;                         // 发送缓冲区可发送数据量
     Ptr<ATPTxBuffer> m_txBuffer;                    // 发送缓冲区，自定义的类型
     std::queue<std::pair<Ptr<Packet>, Address>> m_rxBuffer; // 接收缓冲区，是个队列
+    /*
     uint32_t MAX_AGGREGATORS = 8192 * 8;
     std::vector<Aggregator> m_aggregators;          // 聚合器
+    */
+    std::unordered_map<std::pair<uint8_t, uint32_t>, Aggregator, PairHash> m_aggregators;
+   
 
     //统计所有发送的数据
     uint64_t m_totalTxBytes = 0;

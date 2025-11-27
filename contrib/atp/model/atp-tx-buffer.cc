@@ -230,6 +230,17 @@ ATPTxBuffer::ProcessUnorderedAck(uint32_t packetId)
                 retxItem->m_packet = front->m_packet->Copy();
                 retxItem->m_packetId = front->m_packetId;
                 retxItem->m_lastSentTime = front->m_lastSentTime;
+
+                // 给重传的包打上 resend = 1 的标记
+                ATPTag tag;
+                if (retxItem->m_packet->PeekPacketTag(tag)) {
+                    tag.SetResend(1);
+                    retxItem->m_packet->ReplacePacketTag(tag);
+                }
+                else{
+                    NS_LOG_WARN("PeekPacketTag failed for timeout packet " << item->m_packetId);
+                }
+
                 m_retxQueue.push(retxItem);
             } else {
                 // ID大于收到的ACK ID，保留

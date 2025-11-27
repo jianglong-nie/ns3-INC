@@ -36,6 +36,7 @@ public:
 
     // 添加静态哈希函数
     
+    /*
     static std::size_t HashToIndex(uint8_t jobId, uint32_t seqNum, uint32_t MAX_AGGREGATORS) {
         std::size_t h1 = std::hash<uint8_t>()(jobId);
         std::size_t h2 = std::hash<uint32_t>()(seqNum);
@@ -51,15 +52,26 @@ public:
         // 使用layerId改变哈希计算方式，不同层产生不同的映射
         return ((h1 << layerId) ^ h2 ^ (h3 << 2)) % MAX_AGGREGATORS;
     }
-    
-    /*
+    */
+
+    // 支持layerId的重载版本，使用boost::hash_combine风格
     static std::size_t HashToIndex(uint8_t jobId, uint32_t seqNum, uint32_t MAX_AGGREGATORS) {
         std::size_t seed = 0;
         boost::hash_combine(seed, jobId);
         boost::hash_combine(seed, seqNum);
         return seed % MAX_AGGREGATORS;
     }
-    */
+    
+    
+    // 支持layerId的重载版本，使用boost::hash_combine风格
+    static std::size_t HashToIndexLayer(uint8_t jobId, uint32_t seqNum, uint8_t layerId, uint32_t MAX_AGGREGATORS) {
+        std::size_t seed = 0;
+        boost::hash_combine(seed, jobId);
+        boost::hash_combine(seed, seqNum);
+        boost::hash_combine(seed, layerId);
+        return seed % MAX_AGGREGATORS;
+    }
+    
         
 };
 
