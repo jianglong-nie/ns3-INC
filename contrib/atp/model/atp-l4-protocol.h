@@ -111,7 +111,7 @@ class ATPL4Protocol : public IpL4Protocol
     IpL4Protocol::DownTargetCallback m_downTarget;   //!< Callback to send packets over IPv4
     IpL4Protocol::DownTargetCallback6 m_downTarget6; //!< Callback to send packets over IPv6
 
-    static const uint32_t MAX_AGGREGATORS = 128;  //!< Maximum number of aggregators
+    static const uint32_t MAX_AGGREGATORS = 2048;  //!< Maximum number of aggregators
     std::vector<Aggregator> m_aggregators;         //!< Vector of aggregators
 
     //hash collision counter <jobId, collision count>

@@ -37,11 +37,18 @@ public:
         return ((h1 << 1) ^ h2) % MAX_AGGREGATORS;
     }
     */
+   /*
     static std::size_t HashToIndex(uint8_t jobId, uint32_t seqNum, uint32_t MAX_AGGREGATORS) {
         std::size_t seed = 0;
         boost::hash_combine(seed, jobId);
         boost::hash_combine(seed, seqNum);
         return seed % MAX_AGGREGATORS;
+    }
+    */
+    static std::size_t HashToIndex(uint8_t jobId, uint32_t seqNum, uint32_t MAX_AGGREGATORS) {
+        // 使用大质数来获得更好的分布
+        std::size_t hash = (jobId * 2654435761UL) ^ (seqNum * 2246822519UL);
+        return hash % MAX_AGGREGATORS;
     }
         
 };
