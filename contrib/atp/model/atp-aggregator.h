@@ -53,13 +53,19 @@ public:
         return ((h1 << layerId) ^ h2 ^ (h3 << 2)) % MAX_AGGREGATORS;
     }
     */
-
+    
     // 支持layerId的重载版本，使用boost::hash_combine风格
     static std::size_t HashToIndex(uint8_t jobId, uint32_t seqNum, uint32_t MAX_AGGREGATORS) {
         std::size_t seed = 0;
         boost::hash_combine(seed, jobId);
         boost::hash_combine(seed, seqNum);
         return seed % MAX_AGGREGATORS;
+    }
+    /*
+    static std::size_t HashToIndex(uint8_t jobId, uint32_t seqNum, uint32_t MAX_AGGREGATORS) {
+        // 使用大质数来获得更好的分布
+        std::size_t hash = (jobId * 2654435761UL) ^ (seqNum * 2246822519UL);
+        return hash % MAX_AGGREGATORS;
     }
     
     
@@ -71,7 +77,17 @@ public:
         boost::hash_combine(seed, layerId);
         return seed % MAX_AGGREGATORS;
     }
-    
+    */
+
+    // 不依赖boost::hash_combine的分层哈希版本，确保不同layerId在哈希上有区别
+    static std::size_t HashToIndexLayer(uint8_t jobId, uint32_t seqNum, uint8_t layerId, uint32_t MAX_AGGREGATORS) {
+        // 使用不同大质数混合各个域，确保分层扰动且分布较均匀
+        std::size_t hash =
+            (static_cast<std::size_t>(jobId) * 2654435761UL)
+            ^ (static_cast<std::size_t>(seqNum) * 2246822519UL)
+            ^ (static_cast<std::size_t>(layerId) * 3266489917UL);
+        return hash % MAX_AGGREGATORS;
+    }
         
 };
 
