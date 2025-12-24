@@ -186,3 +186,12 @@ build_lib_example(
                       ${libapplications}
                       ${libpoint-to-point}
 )
+
+build_lib_example(
+    NAME sigmetrics_two_jobs
+    SOURCE_FILES sigmetrics_two_jobs.cc
+    LIBRARIES_TO_LINK ${libatp}
+                      ${libinternet}
+                      ${libapplications}
+                      ${libpoint-to-point}
+)

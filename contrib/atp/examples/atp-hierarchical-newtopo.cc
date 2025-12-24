@@ -79,7 +79,6 @@ main(int argc, char* argv[])
     // 注意：超时重传机制已启用
     // 默认超时时间：500微秒，检查间隔：100微秒
     // 可通过下方参数调整
-
     cwndStream_job1.open("atp-result/trace-ha-newtopo/job1-cwnd-trace-ha-twojobs.txt", std::ofstream::out | std::ofstream::trunc);
     cwndStream_job2.open("atp-result/trace-ha-newtopo/job2-cwnd-trace-ha-twojobs.txt", std::ofstream::out | std::ofstream::trunc);
     
@@ -93,8 +92,9 @@ main(int argc, char* argv[])
     sendBytesStream_workers[7].open("atp-result/trace-ha-newtopo/job2-sendBytes-w7.txt", std::ofstream::out | std::ofstream::trunc);
     sendBytesStream_workers[8].open("atp-result/trace-ha-newtopo/job2-sendBytes-w8.txt", std::ofstream::out | std::ofstream::trunc);
     sendBytesStream_workers[9].open("atp-result/trace-ha-newtopo/job2-sendBytes-w9.txt", std::ofstream::out | std::ofstream::trunc);
+    
     uint32_t maxBytes = 0;
-    Time stopTime = Seconds(1.0) + MicroSeconds(10001); // 约8us为一个rtt时间
+    Time stopTime = Seconds(1.0) + MicroSeconds(1001); // 约8us为一个rtt时间
 
     // 设置job1和job2初始拥塞窗口
     uint64_t initialTimestamp = 1000000;
