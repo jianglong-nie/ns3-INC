@@ -188,8 +188,26 @@ build_lib_example(
 )
 
 build_lib_example(
-    NAME sigmetrics_two_jobs
-    SOURCE_FILES sigmetrics_two_jobs.cc
+    NAME sigmetrics_two_jobs_bg
+    SOURCE_FILES sigmetrics_two_jobs_bg.cc
+    LIBRARIES_TO_LINK ${libatp}
+                      ${libinternet}
+                      ${libapplications}
+                      ${libpoint-to-point}
+)
+
+build_lib_example(
+    NAME sigmetrics_two_jobs_dispatch
+    SOURCE_FILES sigmetrics_two_jobs_dispatch.cc
+    LIBRARIES_TO_LINK ${libatp}
+                      ${libinternet}
+                      ${libapplications}
+                      ${libpoint-to-point}
+)
+
+build_lib_example(
+    NAME sigmetrics_dynamic_3jobs
+    SOURCE_FILES sigmetrics_dynamic_3jobs.cc
     LIBRARIES_TO_LINK ${libatp}
                       ${libinternet}
                       ${libapplications}

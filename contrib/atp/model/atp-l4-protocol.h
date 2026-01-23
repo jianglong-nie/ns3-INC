@@ -118,7 +118,7 @@ class ATPL4Protocol : public IpL4Protocol
     // 聚合器相关
     bool m_enableAggregation;
     uint8_t m_layerId{0};  //!< 层ID，用于分层哈希避免连环冲突
-    static const uint32_t MAX_AGGREGATORS = 2048;  //!< Maximum number of aggregators
+    static const uint32_t MAX_AGGREGATORS = 8192 * 16;  //!< Maximum number of aggregators
     std::vector<Aggregator> m_aggregators;         //!< Vector of aggregators
 
     //hash collision counter <jobId, collision count>

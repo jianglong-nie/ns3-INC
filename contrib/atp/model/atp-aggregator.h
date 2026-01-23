@@ -22,6 +22,7 @@ public:
     bool AddPacket(Ptr<const Packet> packet);
     Ptr<Packet> GetAggregatedPacket() const;
 
+    uint8_t m_ecn = 0;
     uint8_t m_jobId = 0;
     uint32_t m_seqNum = 0;
     uint32_t m_count = 0;

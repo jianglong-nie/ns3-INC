@@ -511,9 +511,11 @@ ATPStaticRouting::RouteInput(Ptr<const Packet> p,
     // Check if input device supports IP
     NS_ASSERT(m_ipv4->GetInterfaceForDevice(idev) >= 0);
     uint32_t iif = m_ipv4->GetInterfaceForDevice(idev);
+    ATPTag atpTag;
+    bool hasatptag = p->PeekPacketTag(atpTag);
 
     // 开启聚合后，让数据包经过ATP L4协议处理
-    if (m_enableAggregation)
+    if (m_enableAggregation && hasatptag)
     {
         // 获取ATP L4协议
         Ptr<ATPL4Protocol> atpL4 = m_ipv4->GetObject<ATPL4Protocol>();

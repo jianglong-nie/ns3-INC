@@ -65,7 +65,7 @@ Measurement(Ptr<ATPPacketSink> sink)
     lastTimeJob2Bytes = currentTimeJob2Bytes;
                             
     // 调度下一个测量
-    Simulator::Schedule(MicroSeconds(1000), &Measurement, sink);
+    Simulator::Schedule(MicroSeconds(100), &Measurement, sink);
 }
 
 static void
@@ -123,12 +123,18 @@ main(int argc, char* argv[])
     
 
     uint32_t maxBytes = 0;
-    Time stopTime = Seconds(1.0) + MicroSeconds(30000); // 约8us为一个rtt时间
+    Time stopTime = Seconds(1.0) + MicroSeconds(10000); // 约8us为一个rtt时间
 
     // 设置job1和job2初始拥塞窗口
     uint64_t initialTimestamp = 1000000;
     uint32_t job1_initCwnd = 1;
     uint32_t job2_initCwnd = 1;
+
+    // 设置超时重传参数
+    // 当数据包发送后超过retxTimeout时间未收到ACK，将触发重传
+    // retxCheckInterval是定期检查超时的间隔时间
+    //Time retxTimeout = MicroSeconds(10);         // 重传超时时间：16us（可调整）
+    //Time retxCheckInterval = MicroSeconds(1);   // 超时检查间隔：2us（可调整）
 
     // 在文件打开后，写入初始拥塞窗口值
     cwndStream_n0_job1 << initialTimestamp << "\t" << job1_initCwnd << std::endl;
@@ -283,7 +289,11 @@ main(int argc, char* argv[])
     // 设置job1初始拥塞窗口
     n0job1_ATPSocket->SetInitCwnd(job1_initCwnd);
     n1job1_ATPSocket->SetInitCwnd(job1_initCwnd);
-    
+    //n0job1_ATPSocket->SetRetxTimeout(retxTimeout);
+    //n0job1_ATPSocket->SetRetxCheckInterval(retxCheckInterval);
+    //n1job1_ATPSocket->SetRetxTimeout(retxTimeout);
+    //n1job1_ATPSocket->SetRetxCheckInterval(retxCheckInterval);
+
     // Configure n0job1App
     n0job1App->Setup(sinkAddress, n0job1_ATPSocket, maxBytes, 1);
     n0job1App->SetEnableATPTag(true);
@@ -319,6 +329,10 @@ main(int argc, char* argv[])
     // 设置job2初始拥塞窗口
     m0job2_ATPSocket->SetInitCwnd(job2_initCwnd);
     m1job2_ATPSocket->SetInitCwnd(job2_initCwnd);
+    //m0job2_ATPSocket->SetRetxTimeout(retxTimeout);
+    //m0job2_ATPSocket->SetRetxCheckInterval(retxCheckInterval);
+    //m1job2_ATPSocket->SetRetxTimeout(retxTimeout);
+    //m1job2_ATPSocket->SetRetxCheckInterval(retxCheckInterval);
 
     // Configure m0job2App
     m0job2App->Setup(sinkAddress, m0job2_ATPSocket, maxBytes, 2);  // Note jobId = 2
@@ -352,6 +366,7 @@ main(int argc, char* argv[])
 
     nodes.Get(3)->AddApplication(m1job2App);
 
+    
     //
     // Create TCP background traffic from t0 to n3
     //
@@ -370,8 +385,8 @@ main(int argc, char* argv[])
     ApplicationContainer bgSourceApp = bgSourceHelper.Install(nodes.Get(6));
     
     // 时断时续的背景流量：启动和停止多次
-    bgSourceApp.Start(Seconds(1.0) + MicroSeconds(15000));
-    bgSourceApp.Stop(Seconds(1.0) + MicroSeconds(16000));
+    bgSourceApp.Start(Seconds(1.0) + MicroSeconds(4000));
+    bgSourceApp.Stop(Seconds(1.0) + MicroSeconds(4500));
     
     // 第二次启动
     //ApplicationContainer bgSourceApp2 = bgSourceHelper.Install(nodes.Get(6));
@@ -382,6 +397,7 @@ main(int argc, char* argv[])
     //ApplicationContainer bgSourceApp3 = bgSourceHelper.Install(nodes.Get(6));
     //bgSourceApp3.Start(Seconds(1.0) + MicroSeconds(22000));
     //bgSourceApp3.Stop(Seconds(1.0) + MicroSeconds(22800));
+    
 
     // 连接拥塞窗口跟踪
     n0job1_ATPSocket->GetTxBuffer()->TraceConnectWithoutContext("cwndTrace",
@@ -482,7 +498,25 @@ main(int argc, char* argv[])
     SinkBytesStream_job2.close();
     queueSizeStream_n2.close();
 
+    std::cout << "-------------job1-------------------" << std::endl;
+    std::cout << "n0 total bytes sent: " << n0job1_ATPSocket->GetTotalTxBytes() << std::endl;
+    std::cout << "n1 total bytes sent: " << n1job1_ATPSocket->GetTotalTxBytes() << std::endl;
+    
+    std::cout << "-------------job2-------------------" << std::endl;
+    std::cout << "m0 total bytes sent: " << m0job2_ATPSocket->GetTotalTxBytes() << std::endl;
+    std::cout << "m1 total bytes sent: " << m1job2_ATPSocket->GetTotalTxBytes() << std::endl;
+
+    std::cout << "--------------------------------" << std::endl;
+    std::cout << "job1-PS total recv bytes: " << sinkApp->GetTotalRxJob(1) << std::endl;
+    std::cout << "job2-PS total recv bytes: " << sinkApp->GetTotalRxJob(2) << std::endl;
     std::cout << "Total Bytes Received: " << sinkApp->GetTotalRx() << std::endl;
+
+    // Get atp l4 protocol
+    Ptr<ATPL4Protocol> n2_atpl4 = staticRouting_n2->GetATPL4Protocol();
+
+    // 输出哈希冲突次数
+    std::cout << "n2_atpl4 job1 hash collision counter: " << n2_atpl4->GetJobIdHashCollisionCounter(1) << std::endl;
+    std::cout << "n2_atpl4 job2 hash collision counter: " << n2_atpl4->GetJobIdHashCollisionCounter(2) << std::endl;
 
     return 0;
 }

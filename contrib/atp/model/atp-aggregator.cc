@@ -48,12 +48,14 @@ Aggregator::AddPacket(Ptr<const Packet> packet)
 
     m_count++;
     m_workerIdAgg = m_workerIdAgg | workerId;
+    m_ecn = m_ecn | atpTag.GetEcn();
 
     // 检查是否完成聚合
     if (m_workerIdAgg == m_jobFaninDegree[atpTag.GetJobId()])
     {
         m_packet->RemovePacketTag(atpTag);
         atpTag.SetWorkerId(m_workerIdAgg);
+        atpTag.SetEcn(m_ecn);
         m_packet->AddPacketTag(atpTag);
         return true;  // 聚合完成，可以取出数据包了
     }
@@ -77,6 +79,7 @@ Aggregator::Reset()
     m_jobId = 0;
     m_seqNum = 0;
     m_count = 0;
+    m_ecn = 0;
     m_packet = nullptr;
 }
 

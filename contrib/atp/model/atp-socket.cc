@@ -904,6 +904,9 @@ ATPSocket::AggregatePacket(Ptr<Packet> packet,
         // 获取聚合后的数据包
         Ptr<Packet> aggregatedPacket = aggregator.GetAggregatedPacket();
 
+        ATPTag aggregatedATPTag;
+        aggregatedPacket->PeekPacketTag(aggregatedATPTag);
+
         // 从 map 中删除已完成的聚合器，避免内存无限增长
         m_aggregators.erase(it);
 
@@ -917,7 +920,7 @@ ATPSocket::AggregatePacket(Ptr<Packet> packet,
                 m_sendMultiAckEvent = Simulator::Schedule(TimeStep(1),
                                                             &ATPSocket::SendMultiAck,
                                                             this,
-                                                            atpTag,
+                                                            aggregatedATPTag,
                                                             header);
             }
             // 通知应用层有数据可读
