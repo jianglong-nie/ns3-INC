@@ -62,3 +62,27 @@ Topology with multiple workers per job sending to a common sink;
 Demonstrates per-job accounting, aggregation, ECN thresholding, and cwnd traces.
 ![Congestion Window and Queue Size](contrib/atp/doc/cwnd.png)
 ![Throughput](contrib/atp/doc/throughput.png)
+
+## Run
+```shell
+git clone -b HA_two_jobs --single-branch https://github.com/jianglong-nie/ns3-INC.git
+```
+
+打开文件夹
+```shell
+cd ns3-INC
+```
+进行配置
+```shell
+./ns3 configure --enable-examples
+```
+第一次编译会耗时一段时间
+```shell
+./ns3 build
+```
+
+运行测试例子
+```shell
+./ns3 run contrib/atp/examples/atp-hierarchical-aggregation-twojobs.cc
+```
+

@@ -205,13 +205,26 @@ ATPL4Protocol::SetEnableAggregation(bool enable)
 }
 
 void
-ATPL4Protocol::SetAggregatorFaninDegree(uint8_t faninDegree)
+ATPL4Protocol::SetAggregatorFaninDegree(uint8_t jobId, uint8_t faninDegree)
 {
     NS_LOG_FUNCTION(this << faninDegree);
     for (auto& aggregator : m_aggregators)
     {
-        aggregator.m_faninDegree = faninDegree;
+        aggregator.m_jobFaninDegree[jobId] = faninDegree;
     }
+}
+
+void
+ATPL4Protocol::SetLayerId(uint8_t layerId)
+{
+    NS_LOG_FUNCTION(this << static_cast<int>(layerId));
+    m_layerId = layerId;
+}
+
+uint8_t
+ATPL4Protocol::GetLayerId() const
+{
+    return m_layerId;
 }
 
 Ptr<Packet>
@@ -224,15 +237,53 @@ ATPL4Protocol::AggregatePacket(Ptr<Packet> packet)
 
     NS_LOG_INFO("ATP DATA packet with jobId = " << static_cast<int>(atpTag.GetJobId())
                                                << ", seqNum = " << static_cast<int>(atpTag.GetSeqNumber())
-                                               << ", workerId = " << static_cast<int>(atpTag.GetWorkerId()));
+                                               << ", workerId = " << static_cast<int>(atpTag.GetWorkerId())
+                                               << ", resend = " << static_cast<int>(atpTag.GetResend())
+                                               << ", layerId = " << static_cast<int>(m_layerId));
 
-    // 使用Aggregator类的哈希函数计算索引
-    std::size_t index = Aggregator::HashToIndex(atpTag.GetJobId(), atpTag.GetSeqNumber(), MAX_AGGREGATORS);
+    // 使用分层哈希函数计算索引，避免跨层连环冲突
+    std::size_t index = Aggregator::HashToIndexLayer(atpTag.GetJobId(), atpTag.GetSeqNumber(), m_layerId, MAX_AGGREGATORS);
     
     // 获取对应的聚合器
     Aggregator& aggregator = m_aggregators[index];
 
-    // 如果聚合器为空，或者jobId和seqNum都匹配
+    // 重传包处理逻辑
+    if (atpTag.GetResend() == 1)
+    {
+        // aggregator为空，直接发走
+        if (aggregator.IsEmpty()) {
+            NS_LOG_INFO("Retransmit packet: aggregator empty, send directly");
+            return packet;
+        }
+        
+        // jobId或seqNum不匹配，直接发走
+        if (aggregator.m_jobId != atpTag.GetJobId() || aggregator.m_seqNum != atpTag.GetSeqNumber()) {
+            NS_LOG_INFO("Retransmit packet: jobId/seqNum mismatch, send directly");
+            return packet;
+        }
+        
+        // 检查bitmap overlap
+        uint8_t workerId = atpTag.GetWorkerId();
+        if ((workerId & aggregator.m_workerIdAgg) != 0) {
+            NS_LOG_INFO("Retransmit packet: already aggregated (overlap), send directly");
+            return packet;
+        }
+        
+        // 未聚合过，参与聚合并直接发走
+        NS_LOG_INFO("Retransmit packet: not aggregated, merge and send");
+        aggregator.m_workerIdAgg |= workerId;
+        
+        // 更新tag并返回聚合后的包
+        ATPTag newTag;
+        aggregator.m_packet->PeekPacketTag(newTag);
+        aggregator.m_packet->RemovePacketTag(newTag);
+        newTag.SetWorkerId(aggregator.m_workerIdAgg);
+        aggregator.m_packet->AddPacketTag(newTag);
+        
+        return aggregator.m_packet->Copy();
+    }
+
+    // 正常包处理逻辑
     if (aggregator.IsEmpty() || 
         (aggregator.m_jobId == atpTag.GetJobId() && 
          aggregator.m_seqNum == atpTag.GetSeqNumber()))
@@ -241,7 +292,6 @@ ATPL4Protocol::AggregatePacket(Ptr<Packet> packet)
         if (aggregator.IsEmpty()) {
             aggregator.m_jobId = atpTag.GetJobId();
             aggregator.m_seqNum = atpTag.GetSeqNumber();
-            // aggregator.m_faninDegree = atpTag.GetFaninDegree();
         }
 
         // 添加数据包到聚合器
@@ -256,14 +306,11 @@ ATPL4Protocol::AggregatePacket(Ptr<Packet> packet)
             aggregatedPacket->RemovePacketTag(newTag);
 
             // 改成聚合完成标志AGG
-            if (aggregator.m_faninDegree == newTag.GetFaninDegree())
+            if (aggregator.m_jobFaninDegree[newTag.GetJobId()] == newTag.GetFaninDegree())
             {
                 newTag.SetPacketType(ATPTag::AGG);
             }
             aggregatedPacket->AddPacketTag(newTag);
-
-            // 重置聚合器
-            //aggregator.Reset();
 
             ATPTag aggcompletag;
             aggregatedPacket->PeekPacketTag(aggcompletag);
@@ -279,7 +326,17 @@ ATPL4Protocol::AggregatePacket(Ptr<Packet> packet)
             return nullptr;
         }
     }
-    return packet;
+    else
+    {
+        NS_LOG_INFO("ATP DATA packet with jobId = " << static_cast<int>(atpTag.GetJobId())
+        << ", seqNum = " << static_cast<int>(atpTag.GetSeqNumber())
+        << ", workerId = " << static_cast<int>(atpTag.GetWorkerId())
+        << ", layerId = " << static_cast<int>(m_layerId) << " detected hash collision. Returning original packet.");
+        
+        m_jobIdHashCollisionCounter[atpTag.GetJobId()]++;
+
+        return packet;
+    }
 }
 
 Ptr<Packet>
@@ -304,7 +361,8 @@ ATPL4Protocol::AggregateStart(Ptr<Packet> packet)
     {
         NS_LOG_INFO("ATPL4Protocol: Reset aggregator for jobId " << static_cast<int>(atpTag.GetJobId())
                                                << " seqNum " << static_cast<int>(atpTag.GetSeqNumber()));
-        std::size_t index = Aggregator::HashToIndex(atpTag.GetJobId(), atpTag.GetSeqNumber(), MAX_AGGREGATORS);
+        // 使用分层哈希函数计算索引，与聚合时使用相同的哈希方式
+        std::size_t index = Aggregator::HashToIndexLayer(atpTag.GetJobId(), atpTag.GetSeqNumber(), m_layerId, MAX_AGGREGATORS);
     
         // 获取对应的聚合器
         Aggregator& aggregator = m_aggregators[index];

@@ -1,0 +1,32 @@
+{
+    "jobs_json": [
+        {
+            "id": 1,
+            "workers": [
+                "server10",
+                "server17",
+                "server22",
+                "server23",
+                "server52",
+                "server7",
+                "server9"
+            ],
+            "ps": "server25",
+            "ps_leaf": "leaf4"
+        },
+        {
+            "id": 2,
+            "workers": [
+                "server11",
+                "server12",
+                "server26",
+                "server27",
+                "server43",
+                "server49",
+                "server64"
+            ],
+            "ps": "server15",
+            "ps_leaf": "leaf2"
+        }
+    ]
+}

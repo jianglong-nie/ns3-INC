@@ -118,6 +118,56 @@
                     "ignoreFailures": true
                 }
             ]
+        },
+        {
+            "name": "Debug atp-hierarchical-aggregation-twojobs",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/contrib/atp/examples/ns3.43-atp-hierarchical-aggregation-twojobs-default",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "Build",
+            "environment": [
+                {
+                    "name": "LD_LIBRARY_PATH",
+                    "value": "${workspaceFolder}/build/lib/"
+                }
+            ],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "Debug atp-p2p-2w2w-diffRTT",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/contrib/atp/examples/ns3.43-atp-p2p-2w2w-diffRTT-default",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "Build",
+            "environment": [
+                {
+                    "name": "LD_LIBRARY_PATH",
+                    "value": "${workspaceFolder}/build/lib/"
+                }
+            ],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
         }
     ],
     "inputs": [

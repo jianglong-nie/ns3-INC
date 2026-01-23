@@ -141,3 +141,75 @@ build_lib_example(
                       ${libapplications}
                       ${libpoint-to-point}
 )
+
+build_lib_example(
+    NAME atp-hierarchical-aggregation-twojobs
+    SOURCE_FILES atp-hierarchical-aggregation-twojobs.cc
+    LIBRARIES_TO_LINK ${libatp}
+                      ${libinternet}
+                      ${libapplications}
+                      ${libpoint-to-point}
+)
+
+build_lib_example(
+    NAME atp-hierarchical-aggregation-64
+    SOURCE_FILES atp-hierarchical-aggregation-64.cc
+    LIBRARIES_TO_LINK ${libatp}
+                      ${libinternet}
+                      ${libapplications}
+                      ${libpoint-to-point}
+)
+
+build_lib_example(
+    NAME atp-hierarchical-aggregation-spineleaf
+    SOURCE_FILES atp-hierarchical-aggregation-spineleaf.cc
+    LIBRARIES_TO_LINK ${libatp}
+                      ${libinternet}
+                      ${libapplications}
+                      ${libpoint-to-point}
+)
+
+build_lib_example(
+    NAME atp-hierarchical-aggregation-spineleaf-json
+    SOURCE_FILES atp-hierarchical-aggregation-spineleaf-json.cc
+    LIBRARIES_TO_LINK ${libatp}
+                      ${libinternet}
+                      ${libapplications}
+                      ${libpoint-to-point}
+)
+
+build_lib_example(
+    NAME atp-hierarchical-newtopo
+    SOURCE_FILES atp-hierarchical-newtopo.cc
+    LIBRARIES_TO_LINK ${libatp}
+                      ${libinternet}
+                      ${libapplications}
+                      ${libpoint-to-point}
+)
+
+build_lib_example(
+    NAME sigmetrics_two_jobs_bg
+    SOURCE_FILES sigmetrics_two_jobs_bg.cc
+    LIBRARIES_TO_LINK ${libatp}
+                      ${libinternet}
+                      ${libapplications}
+                      ${libpoint-to-point}
+)
+
+build_lib_example(
+    NAME sigmetrics_two_jobs_dispatch
+    SOURCE_FILES sigmetrics_two_jobs_dispatch.cc
+    LIBRARIES_TO_LINK ${libatp}
+                      ${libinternet}
+                      ${libapplications}
+                      ${libpoint-to-point}
+)
+
+build_lib_example(
+    NAME sigmetrics_dynamic_3jobs
+    SOURCE_FILES sigmetrics_dynamic_3jobs.cc
+    LIBRARIES_TO_LINK ${libatp}
+                      ${libinternet}
+                      ${libapplications}
+                      ${libpoint-to-point}
+)

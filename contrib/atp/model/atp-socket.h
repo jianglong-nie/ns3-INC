@@ -17,6 +17,7 @@
 #include "ns3/node.h"
 #include "ns3/sequence-number.h"
 #include "ns3/traced-value.h"
+#include "ns3/nstime.h"
 
 #include <queue>
 #include <stdint.h>
@@ -31,6 +32,15 @@ class ATPTag;
 class ATPRxBuffer;
 class ATPL4Protocol;
 class Ipv4EndPoint;
+
+struct PairHash {
+    std::size_t operator()(const std::pair<uint8_t, uint32_t>& p) const {
+        std::size_t seed = 0;
+        boost::hash_combine(seed, p.first);
+        boost::hash_combine(seed, p.second);
+        return seed;
+    }
+};
 
 /**
  * \brief ATP Socket实现
@@ -106,6 +116,15 @@ class ATPSocket : public Socket
 
     // 设置初始拥塞窗口
     void SetInitCwnd(uint32_t initCwnd);
+    
+    // 设置重传超时时间
+    void SetRetxTimeout(Time timeout);
+    
+    // 设置超时检查间隔
+    void SetRetxCheckInterval(Time interval);
+
+    // 获取所有发送的数据
+    uint64_t GetTotalTxBytes() const;
 
   protected:
     void SendWindowData();
@@ -132,6 +151,9 @@ class ATPSocket : public Socket
 
     // 重传数据包
     void Retransmit();
+    
+    // 检查超时的数据包
+    void CheckRetransmitTimeout();
 
     // 连接到ATP/IP的其它层
     Ipv4EndPoint* m_endPoint;          // 本地端点
@@ -153,6 +175,7 @@ class ATPSocket : public Socket
     EventId m_ecnTimerEvent;                        // 添加ECN计时器
     EventId m_sendWindowDataEvent{};                //!< micro-delay event to send pending data
     EventId m_retxEvent{};                          //!< Retransmission event
+    EventId m_retxTimeoutCheckEvent{};              //!< Retransmission timeout check event
     EventId m_sendAckEvent{};                       //!< Send ACK event
     EventId m_sendMultiAckEvent{};                  //!< Send ACK event
 
@@ -164,8 +187,15 @@ class ATPSocket : public Socket
     uint32_t m_txAvailable;                         // 发送缓冲区可发送数据量
     Ptr<ATPTxBuffer> m_txBuffer;                    // 发送缓冲区，自定义的类型
     std::queue<std::pair<Ptr<Packet>, Address>> m_rxBuffer; // 接收缓冲区，是个队列
+    /*
     uint32_t MAX_AGGREGATORS = 8192 * 8;
     std::vector<Aggregator> m_aggregators;          // 聚合器
+    */
+    std::unordered_map<std::pair<uint8_t, uint32_t>, Aggregator, PairHash> m_aggregators;
+   
+
+    //统计所有发送的数据
+    uint64_t m_totalTxBytes = 0;
 
     // 拥塞控制
     uint32_t m_nextSeqNo;              // 下一个序列号
@@ -173,6 +203,10 @@ class ATPSocket : public Socket
     uint32_t m_initCwnd;               // 初始拥塞窗口
     uint32_t m_ssthresh;               // 慢启动阈值
     uint32_t m_mss;                    // 最大报文段大小
+    
+    // 超时重传参数
+    Time m_retxTimeout{MicroSeconds(500)};  // 重传超时时间，默认500微秒
+    Time m_retxCheckInterval{MicroSeconds(100)};  // 超时检查间隔，默认100微秒
     
     // Ipv4EndPoint* m_endPoint;          // 本地端点
     // Address m_peerAddress;             // 对端地址

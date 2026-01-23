@@ -158,6 +158,20 @@ ATPTag::GetEcn() const
 }
 
 void
+ATPTag::SetResend(uint8_t resend)
+{
+    NS_LOG_FUNCTION(this << resend);
+    m_resend = resend;
+}
+
+uint8_t
+ATPTag::GetResend() const
+{
+    NS_LOG_FUNCTION(this);
+    return m_resend;
+}
+
+void
 ATPTag::SetSourcePort(uint16_t sourcePort)
 {
     NS_LOG_FUNCTION(this << sourcePort);
@@ -189,7 +203,7 @@ uint32_t
 ATPTag::GetSerializedSize() const
 {
     NS_LOG_FUNCTION(this);
-    return  1 + 1 + 1 + 1 + 4 + 4 + 1 + 2 + 2 + 2;
+    return  1 + 1 + 1 + 1 + 4 + 4 + 1 + 1 + 2 + 2 + 2;
     // faninDegree + workerId + packetType + jobId + seqNum + ackNum + ecn + 
     // size + sourcePort + destinationPort
 }
@@ -205,6 +219,7 @@ ATPTag::Serialize(TagBuffer buf) const
     buf.WriteU32(m_seqNum);
     buf.WriteU32(m_ackNum);
     buf.WriteU8(m_ecn);
+    buf.WriteU8(m_resend);
     buf.WriteU16(m_size);
     buf.WriteU16(m_sourcePort);
     buf.WriteU16(m_destinationPort);
@@ -221,6 +236,7 @@ ATPTag::Deserialize(TagBuffer buf)
     m_seqNum = buf.ReadU32();
     m_ackNum = buf.ReadU32();
     m_ecn = buf.ReadU8();
+    m_resend = buf.ReadU8();
     m_size = buf.ReadU16();
     m_sourcePort = buf.ReadU16();
     m_destinationPort = buf.ReadU16();
@@ -236,6 +252,7 @@ void ATPTag::Print(std::ostream& os) const
        << " jobId=" << static_cast<int>(m_jobId)
        << " ackNum=" << static_cast<int>(m_ackNum)
        << " ecn=" << static_cast<int>(m_ecn)
+       << " resend=" << static_cast<int>(m_resend)
        << " size=" << m_size
        << " sourcePort=" << m_sourcePort
        << " destinationPort=" << m_destinationPort
@@ -251,6 +268,7 @@ ATPTag::CopyFrom(const ATPTag& other)
     m_jobId = other.m_jobId;
     m_seqNum = other.m_seqNum;
     m_ackNum = other.m_ackNum;
+    m_resend = other.m_resend;
     m_size = other.m_size;
     m_ecn = other.m_ecn;
     m_sourcePort = other.m_sourcePort;

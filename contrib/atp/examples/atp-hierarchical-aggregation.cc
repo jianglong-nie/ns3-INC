@@ -106,7 +106,7 @@ main(int argc, char* argv[])
     //
     PointToPointHelper pointToPoint;
     pointToPoint.SetDeviceAttribute("DataRate", StringValue("100Gbps"));
-    pointToPoint.SetChannelAttribute("Delay", StringValue("2us"));
+    pointToPoint.SetChannelAttribute("Delay", StringValue("1us"));
 
     NetDeviceContainer dev_w0s0, dev_w1s0, dev_w2s1, dev_w3s1, dev_s0s2, dev_s1s2, dev_s2ps;
     dev_w0s0 = pointToPoint.Install(w0s0);
@@ -134,13 +134,13 @@ main(int argc, char* argv[])
     n2Device->SetQueue(customQueue);
     */
 
-    s0Device->SetThreshold(2);
-    s1Device->SetThreshold(2);
-    s2Device->SetThreshold(2);
+    s0Device->SetThreshold(160);
+    s1Device->SetThreshold(160);
+    s2Device->SetThreshold(160);
 
-    s0Device->SetEnableEcn(true);
-    s1Device->SetEnableEcn(true);
-    s2Device->SetEnableEcn(true);
+    s0Device->SetEnableEcn(false);
+    s1Device->SetEnableEcn(false);
+    s2Device->SetEnableEcn(false);
 
     //
     // Install the internet stack on the nodes
@@ -316,9 +316,9 @@ main(int argc, char* argv[])
     Ptr<ATPL4Protocol> atpl4_s1 = staticRouting_s1->GetATPL4Protocol();
     Ptr<ATPL4Protocol> atpl4_s2 = staticRouting_s2->GetATPL4Protocol();
 
-    atpl4_s0->SetAggregatorFaninDegree(0b00000011);
-    atpl4_s1->SetAggregatorFaninDegree(0b00001100);
-    atpl4_s2->SetAggregatorFaninDegree(0b00001111);
+    atpl4_s0->SetAggregatorFaninDegree(1, 0b00000011);
+    atpl4_s1->SetAggregatorFaninDegree(1, 0b00001100);
+    atpl4_s2->SetAggregatorFaninDegree(1, 0b00001111);
 
     // 配置w0的路由表 w0->s0->s2->ps
     staticRouting_w0->AddHostRouteTo(ip_s2ps.GetAddress(1), ip_s0s2.GetAddress(0), 1);
@@ -383,7 +383,7 @@ main(int argc, char* argv[])
     // Now, do the actual simulation.
     //
     NS_LOG_INFO("Run Simulation.");
-    Simulator::Stop(stopTime);
+    Simulator::Stop(stopTime + MicroSeconds(10));
     Simulator::Run();
     Simulator::Destroy();
     NS_LOG_INFO("Done.");

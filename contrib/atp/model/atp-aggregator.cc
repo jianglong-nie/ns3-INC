@@ -9,7 +9,7 @@ Aggregator::Aggregator()
     : m_jobId(0),
       m_seqNum(0),
       m_count(0),
-      m_faninDegree(0b00000000),
+      m_jobFaninDegree(),
       m_workerIdAgg(0b00000000),
       m_packet(nullptr)
 {
@@ -25,10 +25,10 @@ Aggregator::~Aggregator()
 }
 
 void
-Aggregator::SetFaninDegree(uint8_t faninDegree)
+Aggregator::SetFaninDegree(uint8_t jobId, uint8_t faninDegree)
 {
-    NS_LOG_FUNCTION(this << faninDegree);
-    m_faninDegree = faninDegree;
+    NS_LOG_FUNCTION(this << jobId << faninDegree);
+    m_jobFaninDegree[jobId] = faninDegree;
 }
 
 bool
@@ -48,12 +48,14 @@ Aggregator::AddPacket(Ptr<const Packet> packet)
 
     m_count++;
     m_workerIdAgg = m_workerIdAgg | workerId;
+    m_ecn = m_ecn | atpTag.GetEcn();
 
     // 检查是否完成聚合
-    if (m_workerIdAgg == m_faninDegree)
+    if (m_workerIdAgg == m_jobFaninDegree[atpTag.GetJobId()])
     {
         m_packet->RemovePacketTag(atpTag);
         atpTag.SetWorkerId(m_workerIdAgg);
+        atpTag.SetEcn(m_ecn);
         m_packet->AddPacketTag(atpTag);
         return true;  // 聚合完成，可以取出数据包了
     }
@@ -77,6 +79,7 @@ Aggregator::Reset()
     m_jobId = 0;
     m_seqNum = 0;
     m_count = 0;
+    m_ecn = 0;
     m_packet = nullptr;
 }
 

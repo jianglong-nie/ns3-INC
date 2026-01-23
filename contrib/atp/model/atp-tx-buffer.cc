@@ -1,4 +1,5 @@
 #include "atp-tx-buffer.h"
+#include "atp-tag.h"
 #include "ns3/log.h"
 
 namespace ns3 {
@@ -157,8 +158,8 @@ ATPTxBuffer::SendPacket()
     m_pendingQueue.pop();
     m_bufferDataSize -= item->m_packet->GetSize();
 
-    // 更新发送时间，将item存入已发送队列
-    item->m_lastSentTime = static_cast<uint32_t>(Simulator::Now().GetMilliSeconds());
+    // 更新发送时间（微秒），将item存入已发送队列
+    item->m_lastSentTime = static_cast<uint32_t>(Simulator::Now().GetMicroSeconds());
     m_sentQueue.push(item);
 
     return item->m_packet;
@@ -229,6 +230,17 @@ ATPTxBuffer::ProcessUnorderedAck(uint32_t packetId)
                 retxItem->m_packet = front->m_packet->Copy();
                 retxItem->m_packetId = front->m_packetId;
                 retxItem->m_lastSentTime = front->m_lastSentTime;
+
+                // 给重传的包打上 resend = 1 的标记
+                ATPTag tag;
+                if (retxItem->m_packet->PeekPacketTag(tag)) {
+                    tag.SetResend(1);
+                    retxItem->m_packet->ReplacePacketTag(tag);
+                }
+                else{
+                    NS_LOG_WARN("PeekPacketTag failed for timeout packet " << item->m_packetId);
+                }
+
                 m_retxQueue.push(retxItem);
             } else {
                 // ID大于收到的ACK ID，保留
@@ -308,6 +320,69 @@ ATPTxBuffer::RetransmitPacket()
     delete item;
 
     return packet;
+}
+
+uint32_t
+ATPTxBuffer::CheckAndMoveTimeoutPackets(uint32_t timeoutUs)
+{
+    NS_LOG_FUNCTION(this << timeoutUs);
+    
+    if (m_sentQueue.empty()) {
+        return 0;
+    }
+    
+    uint32_t currentTime = static_cast<uint32_t>(Simulator::Now().GetMicroSeconds());
+    uint32_t timeoutCount = 0;
+    PacketQueue tempQueue;
+    
+    // 遍历已发送队列，检查超时的包
+    while (!m_sentQueue.empty()) {
+        ATPTxItem* item = m_sentQueue.front();
+        m_sentQueue.pop();
+        
+        uint32_t elapsedTime = currentTime - item->m_lastSentTime;
+        
+        if (elapsedTime >= timeoutUs) {
+            // 超时了，移到重传队列
+            NS_LOG_INFO("Packet " << item->m_packetId << " timeout, elapsed: " 
+                        << elapsedTime << "us, threshold: " << timeoutUs << "us");
+            
+            ATPTxItem* retxItem = new ATPTxItem();
+            retxItem->m_packet = item->m_packet->Copy();
+            retxItem->m_packetId = item->m_packetId;
+            retxItem->m_lastSentTime = item->m_lastSentTime;
+            
+            // 给超时重传的包打上 resend = 1 的标记
+            ATPTag tag;
+            if (retxItem->m_packet->PeekPacketTag(tag)) {
+                tag.SetResend(1);
+                retxItem->m_packet->ReplacePacketTag(tag);
+            }
+            else{
+                NS_LOG_WARN("PeekPacketTag failed for timeout packet " << item->m_packetId);
+            }
+            
+            m_retxQueue.push(retxItem);
+            
+            tempQueue.push(item);
+            timeoutCount++;
+        } else {
+            // 没有超时，保留在队列中
+            tempQueue.push(item);
+        }
+    }
+    
+    // 将未超时的包放回已发送队列
+    while (!tempQueue.empty()) {
+        m_sentQueue.push(tempQueue.front());
+        tempQueue.pop();
+    }
+    
+    if (timeoutCount > 0) {
+        NS_LOG_WARN("Found " << timeoutCount << " timeout packets");
+    }
+    
+    return timeoutCount;
 }
 
 } // namespace ns3
